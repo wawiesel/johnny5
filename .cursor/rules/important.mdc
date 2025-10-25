@@ -2,7 +2,17 @@
 alwaysApply: true
 ---
 
-# Johnny5 — Cursor Rules
+# Johnny5 Cursor Rules
 
-Cursor must follow CONTRIBUTING.md for all code generation standards.
-Only modify code under src/johnny5/ and tests/.
+## Identity
+- Use the `gh` CLI authenticated as **johnny5-bot** for all GitHub actions (push, PRs, reviews).
+
+## Authority
+- Follow **SPEC.md** (what it must do).
+- Follow **DESIGN.md** (how to implement).
+- Follow **CONTRIBUTING.md** (repo layout, coding standards, workflow).
+
+## Behavior
+- Modify only code under `src/johnny5/**`, `tests/**`, `web/**`.
+- Do not change docs/CI/metadata except these three files: `SPEC.md`, `DESIGN.md`, `CONTRIBUTING.md` (only when explicitly asked).
+- Open PRs into `main`; do not auto-merge.
