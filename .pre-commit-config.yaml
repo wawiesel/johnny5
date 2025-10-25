@@ -14,6 +14,5 @@ repos:
         name: Validate Example README Commands
         entry: bash scripts/pre-commit-hook
         language: system
-        files: ^examples/.*/README\.md$
         pass_filenames: false
         always_run: true
