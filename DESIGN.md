@@ -17,43 +17,51 @@
 ### 1.2 Data Flow
 ```
 PDF (input)
-└─ disassembler.run_disassemble()
-├─ Docling → _cache/lossless.json
-├─ fixup(module:function) → in-memory edits
-└─ _cache/lossless_fixed.json  (authoritative corrected JSON)
-└─ reassembler.run_reassemble(_cache/lossless_fixed.json)
-├─ QMD text  → _cache/output.qmd
-└─ HTML text → _cache/output.html
-└─ server (PDF.js + overlays)
-├─ GET /pages/{n} (images/metrics)
-├─ GET /overlays/{n}
+└─ disassembler.run_disassemble(pdf, fixup.py)
+├─ Docling → _cache/structure.json
+├─ fixup.py → _cache/fstructure.json
+└─ extractor.run_extract(fstructure.json, extractor.py)
+└─ _cache/content.json
+└─ reassembler.run_reassemble(content.json, assembler.py)
+└─ _cache/content.qmd
+└─ server (Johnny5 Web Interface)
+├─ Left Pane: Y-Density, Annotated PDF, X-Density, Disassembly Log
+├─ Right Pane: QMD/HTML Tabs, Reassembled Output, Reconstruction Log
 └─ WS /events (hot-reload pings)
 ```
 
 ### 1.3 Processes & Hot Reload
 - `watcher` watches:
   - fixup modules under `src/johnny5/fixups/` and user-provided paths
-  - `_cache/lossless.json`
-- On change: re-run fixup → overwrite `_cache/lossless_fixed.json` → notify via WS.
+  - `_cache/structure.json`
+- On change: re-run fixup → overwrite `_cache/fstructure.json` → notify via WS.
 
 ## 2. Modules & Contracts
 
 ### 2.1 disassembler.py
-- `run_disassemble(pdf: Path, *, layout_model: str, enable_ocr: bool, json_dpi: int, fixup: str | None) -> Path`
-  - Writes `_cache/lossless.json` and `_cache/lossless_fixed.json`.
-  - Returns path to corrected JSON.
+- `run_disassemble(pdf: Path, fixup: Path) -> tuple[Path, Path]`
+  - Writes `_cache/structure.json` (detailed structure without fixup) and `_cache/fstructure.json` (detailed structure with fixup).
+  - Returns paths to both JSON files.
 - Implementation notes:
   - Use Docling (pdfium backend). Store `_cache/_meta.json` with options + file hash.
-  - Fixup loading: `module:function` import; execute with `FixupContext`.
+  - Fixup loading: execute fixup.py with `FixupContext`.
 
-### 2.2 reassembler.py
-- `run_reassemble(json_path: Path) -> tuple[str, str]`
-  - Returns `(qmd_text, html_text)`. Also writes `_cache/output.qmd`, `_cache/output.html`.
-  - Deterministic ordering; no side effects outside `_cache/`.
+### 2.2 extractor.py
+- `run_extract(fstructure_path: Path, extractor: Path) -> Path`
+  - Converts `fstructure.json` into `content.json` using extractor.py
+  - Returns path to content.json
 
-### 2.3 server.py
+### 2.3 reassembler.py
+- `run_reassemble(content_path: Path, assembler: Path) -> Path`
+  - Converts `content.json` into `content.qmd` using assembler.py
+  - Returns path to content.qmd
+
+### 2.4 server.py
 - FastAPI (async) with:
-  - `GET /` → index (PDF.js shell + right/left/top panes, tabs for QMD/HTML).
+  - `GET /` → Johnny5 Web Interface with split-pane layout:
+    - **Left Pane (Disassembly)**: Y-Density Plot, Annotated PDF + Labels, X-Density Plot, Disassembly Log
+    - **Right Pane (Reconstruction)**: QMD/HTML Tabs, Reassembled Output, Reconstruction Log
+    - **Shared vertical scroll bar** for synchronized scrolling
   - `GET /doc` → metadata (page count, sizes).
   - `GET /pages/{n}/image?dpi=...` → raster via PyMuPDF (no quality loss controls in Matplotlib).
   - `GET /overlays/{n}` → clusters, colors, callouts.
@@ -61,11 +69,11 @@ PDF (input)
   - `WS /events` → `{"type":"reload","page":n}` on fixup refresh.
 - Static under `web/static`, templates under `web/templates`.
 
-### 2.4 watcher.py
+### 2.5 watcher.py
 - `watch_fixups(paths: list[Path], on_change: Callable[[], None])`
 - Debounce 250–500 ms. Broadcast WS event after successful re-fixup.
 
-### 2.5 utils/
+### 2.6 utils/
 - `density.py`
   - `compute_x_density(page) -> list[float]`
   - `compute_y_density(page) -> list[float]`
@@ -78,8 +86,8 @@ PDF (input)
 
 ## 3. Naming & Files
 
-- Cache: `_cache/lossless.json`, `_cache/lossless_fixed.json`, `_cache/output.{qmd,html}`, `_cache/_meta.json`.
-- Module names: `disassembler.py`, `reassembler.py`, not verbs in function names except `run_*`.
+- Cache: `_cache/structure.json`, `_cache/fstructure.json`, `_cache/content.json`, `_cache/content.qmd`, `_cache/_meta.json`.
+- Module names: `disassembler.py`, `extractor.py`, `reassembler.py`, not verbs in function names except `run_*`.
 - Fixup signature:
   ```python
   def fixup(ctx: FixupContext) -> None | dict | list[dict] | str:
