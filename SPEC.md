@@ -82,18 +82,20 @@ Each stage generates a cache key by checksumming all relevant inputs. The cache 
 
 All cache files use subdirectories with consistent naming: `{JNY5_HOME}/cache/{stage}/{cache_key}.{ext}`
 
-Examples:
+**Structure Stage**: Both raw Docling output and fixup-processed structure files are stored in the same `structure/` directory:
 - `~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json` (raw Docling output)
-- `~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure, same dir as raw)
-- `~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json`
-- `~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd`
+- `~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure after fixup)
 
-**Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file.
+**Other Stages**:
+- `~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json` (extracted content)
+- `~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd` (reconstructed QMD)
+
+**Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file. The raw and fixed files can coexist in the same directory with different cache keys.
 
 
 #### Cache Key Emission
 
-Every command outputs its generated cache key to stdout for chaining:
+Every command outputs its generated cache key to stdout for chaining. All logging, progress, and diagnostic information goes to stderr to avoid interfering with cache key capture.
 
 ```bash
 # Example workflow
@@ -115,10 +117,12 @@ jny5 view document.pdf --fixup fixup.py --extract extract.py --reconstruct recon
 
 Each Python script must export a single callable with the following signatures:
 
+**Note**: `FixupContext` provides page index, page size (points), cluster data, style flags (bold/italic), normalized coordinates, and helper methods like `is_bold()`, `near_left_margin()`, etc.
+
 ```python
 # fixup.py
-def fixup(structure: dict) -> dict:
-    """Return modified structure JSON."""
+def fixup(ctx: FixupContext) -> None | dict | list[dict] | str:
+    """Return None (no change), a replacement cluster, a list (split), or label override (str)."""
 
 # extract.py
 def extract(fstructure: dict) -> dict:
@@ -167,3 +171,15 @@ def reconstruct(content: dict) -> str:
 - **Synchronized scrolling**: The vertical scroll bar must scroll both panes simultaneously to maintain alignment between disassembly and reconstruction views
 - **Responsive**: The web UI must be responsive to movements.
 - **Beautiful**: The PDF render should be crisp and easy to read.
+
+### Error Handling
+
+Johnny5 uses structured error handling with specific error types:
+
+- **CLI Commands**: Raise `Johnny5Error` (base) with specific subclasses:
+  - `DoclingError`: PDF parsing or Docling processing failures
+  - `FixupLoadError`: Fixup module loading or syntax errors
+  - `FixupRuntimeError`: Runtime errors during fixup execution
+  - `InvalidJsonError`: JSON parsing or validation errors
+- **Web Server**: Returns `4xx/5xx` JSON responses with `code`, `message`, `detail` fields
+- **Logging**: All error messages go to stderr, never stdout
