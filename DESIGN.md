@@ -129,8 +129,9 @@ PDF (input)
 ## 7. Testing Strategy
 
 * Unit tests per util + module contracts.
-* Golden files for `_cache/lossless_fixed.json` on small fixtures.
+* Golden files for cache outputs on small fixtures (structure, content, qmd stages).
 * Web tests: Starlette TestClient for JSON endpoints; smoke test for index.
+* Cache key generation tests to ensure deterministic outputs.
 
 ## 8. Non-Goals (for now)
 
