@@ -63,7 +63,7 @@ PDF (input)
   - Returns new cache key for downstream use
 
 ### 2.4 server.py
-- FastAPI (async) with:
+- FastAPI (async) serving local files and visualization tools:
   - `GET /` → Johnny5 Web Interface with split-pane layout:
     - **Left Pane (Disassembly)**: 
       - X-Density banner above PDF with image indicators (d: original document, p: fixup JSON)
@@ -74,7 +74,7 @@ PDF (input)
     - **Right Pane (Reconstruction)**:
       - X-Density banner above content with image indicator (q: content.json)
       - Y-Density banner to right of content
-      - JSON/QMD/HTML Tabs with reassembled output
+      - JSON/QMD/HTML Tabs with reconstructed output
       - Terminal-like reconstruction log at bottom
     - **Shared vertical scroll bar** for synchronized scrolling
   - `GET /doc` → metadata (page count, sizes).
@@ -83,6 +83,7 @@ PDF (input)
   - `GET /density/{n}` → x/y density arrays + inferred margins.
   - `WS /events` → `{"type":"reload","page":n}` on fixup refresh.
 - Static under `web/static`, templates under `web/templates`.
+- Assumes local files exist; serves visualization and debugging tools.
 
 ### 2.5 watcher.py
 - `watch_fixups(paths: list[Path], on_change: Callable[[], None])`
