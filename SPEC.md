@@ -147,11 +147,11 @@ def assemble(content: dict) -> str:
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-```
-d: is an image that represents the content of the original document, it changes when the underlying PDF changes or if the Docling processing options change
-p: is an image that represents the content of the fixup JSON (if d==p no fixups are needed)
-q: is an image that represents the content of the content.json
-```
+**Image Indicators:**
+
+- **d**: Original document image - changes when the underlying PDF changes or Docling processing options change
+- **p**: Fixup JSON image - represents the content of the fixup JSON (if d==p, no fixups are needed)
+- **q**: Content JSON image - represents the content of the content.json
 
 ### Web Interface Interactions
 
