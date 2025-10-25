@@ -8,7 +8,8 @@
 
 ### 1.1 Components
 - **disassembler**: PDF → Docling lossless JSON → apply fixup → corrected JSON.
-- **reassembler**: corrected JSON → QMD + HTML strings (and files).
+- **extractor**: corrected JSON → simplified content JSON.
+- **reconstructor**: content JSON → QMD + HTML strings (and files).
 - **server**: FastAPI app serving PDF.js UI, REST/WS APIs, static assets.
 - **watcher**: hot-reload fixup modules, broadcast overlay updates.
 - **utils**: pure functions (density, margins, context building).
@@ -18,43 +19,48 @@
 ```
 PDF (input)
 └─ disassembler.run_disassemble(pdf, fixup.py)
-├─ Docling → _cache/structure.json
-├─ fixup.py → _cache/fstructure.json
-└─ extractor.run_extract(fstructure.json, extractor.py)
-└─ _cache/content.json
-└─ reassembler.run_reassemble(content.json, assembler.py)
-└─ _cache/content.qmd
+├─ Docling → {JNY5_HOME}/cache/structure/{cache_key}.json
+├─ fixup.py → {JNY5_HOME}/cache/structure/{cache_key}.json (same or different key)
+└─ extractor.run_extract(fstructure_path, extractor.py)
+└─ {JNY5_HOME}/cache/content/{cache_key}.json
+└─ reconstructor.run_reconstruct(content_path, reconstructor.py)
+└─ {JNY5_HOME}/cache/qmd/{cache_key}.qmd
 └─ server (Johnny5 Web Interface)
 ├─ Left Pane: Y-Density, Annotated PDF, X-Density, Disassembly Log
-├─ Right Pane: QMD/HTML Tabs, Reassembled Output, Reconstruction Log
+├─ Right Pane: QMD/HTML Tabs, Reconstructed Output, Reconstruction Log
 └─ WS /events (hot-reload pings)
 ```
 
 ### 1.3 Processes & Hot Reload
 - `watcher` watches:
   - fixup modules under `src/johnny5/fixups/` and user-provided paths
-  - `_cache/structure.json`
-- On change: re-run fixup → overwrite `_cache/fstructure.json` → notify via WS.
+  - cache files in `{JNY5_HOME}/cache/structure/`
+- On change: re-run fixup → generate new cache key → notify via WS.
 
 ## 2. Modules & Contracts
 
 ### 2.1 disassembler.py
-- `run_disassemble(pdf: Path, fixup: Path) -> tuple[Path, Path]`
-  - Writes `_cache/structure.json` (detailed structure without fixup) and `_cache/fstructure.json` (detailed structure with fixup).
-  - Returns paths to both JSON files.
+- `run_disassemble(pdf: Path, fixup: Path) -> str`
+  - Generates cache key from PDF content and fixup file
+  - Writes `{JNY5_HOME}/cache/structure/{cache_key}.json` (structure with fixup applied)
+  - Returns cache key for downstream use
 - Implementation notes:
-  - Use Docling (pdfium backend). Store `_cache/_meta.json` with options + file hash.
+  - Use Docling (pdfium backend). Store metadata with options + file hash.
   - Fixup loading: execute fixup.py with `FixupContext`.
 
 ### 2.2 extractor.py
-- `run_extract(fstructure_path: Path, extractor: Path) -> Path`
-  - Converts `fstructure.json` into `content.json` using extractor.py
-  - Returns path to content.json
+- `run_extract(cache_key: str, extractor: Path) -> str`
+  - Uses `{JNY5_HOME}/cache/structure/{cache_key}.json` as input
+  - Converts structure JSON into content JSON using extractor.py
+  - Writes `{JNY5_HOME}/cache/content/{new_cache_key}.json`
+  - Returns new cache key for downstream use
 
-### 2.3 reassembler.py
-- `run_reassemble(content_path: Path, assembler: Path) -> Path`
-  - Converts `content.json` into `content.qmd` using assembler.py
-  - Returns path to content.qmd
+### 2.3 reconstructor.py
+- `run_reconstruct(cache_key: str, reconstructor: Path) -> str`
+  - Uses `{JNY5_HOME}/cache/content/{cache_key}.json` as input
+  - Converts content JSON into QMD using reconstructor.py
+  - Writes `{JNY5_HOME}/cache/qmd/{new_cache_key}.qmd`
+  - Returns new cache key for downstream use
 
 ### 2.4 server.py
 - FastAPI (async) with:
@@ -95,8 +101,8 @@ PDF (input)
 
 ## 3. Naming & Files
 
-- Cache: `_cache/structure.json`, `_cache/fstructure.json`, `_cache/content.json`, `_cache/content.qmd`, `_cache/_meta.json`.
-- Module names: `disassembler.py`, `extractor.py`, `reassembler.py`, not verbs in function names except `run_*`.
+- Cache: `{JNY5_HOME}/cache/{stage}/{cache_key}.{ext}` where stage is `structure`, `content`, or `qmd`
+- Module names: `disassembler.py`, `extractor.py`, `reconstructor.py`, not verbs in function names except `run_*`
 - Fixup signature:
   ```python
   def fixup(ctx: FixupContext) -> None | dict | list[dict] | str:
