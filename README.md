@@ -1,0 +1,80 @@
+# Johnny5
+
+**Document decomposition and recomposition framework powered by Docling**
+
+Johnny5 is a Python package that disassembles PDFs into structured JSON, applies intelligent fixups, and reassembles them into various formats (QMD, HTML) with a beautiful web interface.
+
+## Features
+
+- 🔍 **PDF Disassembly**: Convert PDFs to lossless JSON using Docling
+- 🔧 **Intelligent Fixups**: Apply custom processing modules for different document types
+- 🌐 **Web Viewer**: Interactive PDF viewer with PDF.js integration
+- 📝 **Multiple Outputs**: Generate Quarto Markdown (.qmd) or HTML
+- ⚡ **Live Reload**: Watch and reload fixup scripts during development
+
+## Installation
+
+```bash
+# Install in development mode
+cd johnny5
+pip install -e .
+```
+
+## Usage
+
+### CLI Commands
+
+```bash
+# Disassemble a PDF to JSON
+johnny5 disassemble document.pdf
+
+# Launch web viewer
+johnny5 web document.pdf
+
+# With custom options
+johnny5 disassemble document.pdf --layout-model pubtables --enable-ocr --json-dpi 300
+johnny5 web document.pdf --port 8080
+```
+
+### Python API
+
+```python
+from johnny5 import run_decompose, json_to_qmd, run_web
+
+# Disassemble PDF
+run_decompose("document.pdf", layout_model="pubtables", enable_ocr=True)
+
+# Convert JSON to QMD
+json_to_qmd("document.json")
+
+# Launch web viewer
+run_web("document.pdf", port=8000)
+```
+
+## Project Structure
+
+```
+johnny5/
+├── src/johnny5/
+│   ├── cli.py              # Click-based CLI
+│   ├── decomposer.py       # Docling integration
+│   ├── recomposer.py       # JSON → QMD/HTML
+│   ├── server.py           # FastAPI web backend
+│   ├── watcher.py          # Live reload
+│   ├── utils/              # Utility modules
+│   ├── fixups/             # Custom fixup scripts
+│   └── web/                # Web interface assets
+└── pyproject.toml          # Package configuration
+```
+
+## Development
+
+The package is structured for easy extension:
+
+- **Fixups**: Add custom processing modules in `fixups/`
+- **Utils**: Extend utility functions in `utils/`
+- **Web**: Customize the web interface in `web/`
+
+## License
+
+MIT License - see LICENSE file for details.

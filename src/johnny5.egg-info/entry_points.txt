@@ -1,0 +1,2 @@
+[console_scripts]
+johnny5 = johnny5.cli:main

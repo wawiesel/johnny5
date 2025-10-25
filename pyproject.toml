@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "johnny5"
+version = "0.1.0"
+description = "Decompose, fix, and recompose structured documents using Docling"
+authors = [{ name = "William Wieselquist" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "python-multipart",
+  "watchfiles",
+  "docling",
+  "docling-parse",
+  "jinja2",
+  "numpy",
+  "click",
+]
+
+[project.urls]
+Homepage = "https://github.com/ww5/johnny5"
+Issues = "https://github.com/ww5/johnny5/issues"
+
+[project.scripts]
+johnny5 = "johnny5.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/johnny5"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.black]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+
+[tool.pytest.ini_options]
+addopts = "-q --tb=short"
+testpaths = ["tests"]

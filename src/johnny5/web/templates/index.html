@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Johnny5 Web Viewer</title>
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Johnny5 Document Viewer</h1>
+            <div class="pdf-info">
+                <p><strong>PDF:</strong> {{ pdf_path }}</p>
+            </div>
+        </header>
+        
+        <main>
+            <div class="viewer-container">
+                <div id="pdf-viewer">
+                    <!-- PDF.js viewer will be mounted here -->
+                    <p>Loading PDF viewer...</p>
+                </div>
+                
+                <div id="sidebar">
+                    <h3>Document Structure</h3>
+                    <div id="structure-panel">
+                        <!-- Document structure will be loaded here -->
+                        <p>Loading document structure...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/app.js"></script>
+</body>
+</html>

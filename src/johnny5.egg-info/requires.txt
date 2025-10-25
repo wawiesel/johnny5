@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+watchfiles
+docling
+docling-parse
+pypdfium2_backend
+jinja2
+numpy
+click
