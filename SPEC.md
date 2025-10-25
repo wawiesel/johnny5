@@ -55,8 +55,8 @@ Each stage generates a cache key by checksumming all relevant inputs. The cache 
 
 #### Cache Key Sources by Stage
 
-| Stage       | Cache Key Sources                    | Example Key      |
-|-------------|--------------------------------------|------------------|
+| Stage         | Cache Key Sources                    | Example Key      |
+|---------------|--------------------------------------|------------------|
 | **Disassemble** | PDF content + Docling options        | `a1b2c3d4e5f6g7h8` |
 | **Fixup**       | structure.json content + fixup.py content | `b2c3d4e5f6g7h8i9` |
 | **Extract**     | fstructure.json content + extract.py content | `c3d4e5f6g7h8i9j0` |
