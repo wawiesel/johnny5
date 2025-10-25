@@ -38,14 +38,21 @@ for readme_file in $readme_files; do
         if [ -n "$command" ]; then
             echo "    🔧 Running: $command"
             
-            # Handle file-modifying commands specially
+            # Handle file-modifying commands specially - validate without modifying
             if [[ "$command" == *"to-pdf"* ]]; then
-                echo "    🔧 Running file-modifying command: $command"
-                # Run the command but don't fail if it modifies files
-                if (cd "$example_dir" && source ../../venv/bin/activate && export PATH="../../venv/bin:$PATH" && export PYTHONPATH="../../src:$PYTHONPATH" && eval "$command" >/dev/null 2>&1); then
-                    echo "    ✅ Command succeeded: $command"
+                echo "    🔧 Validating file-modifying command: $command"
+                # Test the command in a temporary directory to avoid modifying tracked files
+                temp_dir=$(mktemp -d)
+                cp -r "$example_dir"/* "$temp_dir/" 2>/dev/null || true
+                # Calculate the correct path to venv from the temp directory
+                venv_path=$(realpath "$example_dir/../../venv/bin/activate")
+                src_path=$(realpath "$example_dir/../../src")
+                if (cd "$temp_dir" && source "$venv_path" && export PATH="$(dirname "$venv_path"):$PATH" && export PYTHONPATH="$src_path:$PYTHONPATH" && eval "$command" >/dev/null 2>&1); then
+                    echo "    ✅ Command would succeed: $command"
+                    rm -rf "$temp_dir"
                 else
                     echo "    ❌ Command failed: $command"
+                    rm -rf "$temp_dir"
                     validation_failed=true
                 fi
                 continue

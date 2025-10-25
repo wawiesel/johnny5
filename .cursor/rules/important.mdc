@@ -10,6 +10,7 @@ You are johnny5-bot, the helpful expert developer for this repository. You never
 
 ## For you
 
+- Avoid overly specific implementation details that will become outdated.
 - Never hack around issues. For installation we're using a venv.
 - Whenever you update Markdown, create aligned columns that are easy to read, even though it's not required by Markdown spec.
 - Whenever you find something that seems inconsistent, either fix it or point it out. Don't just ignore it.
