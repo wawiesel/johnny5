@@ -20,24 +20,29 @@ Johnny5 provides a reproducible, pluggable environment for document disassembly 
 
 ```
 jny5 disassemble <pdf> --fixup <fixup.py>
-
-# creates cached "_cache/structure.json" (detailed structure without fixup)
-# "_cache/fstructure.json" (detailed structure with fixup)
+# Outputs cache key: a1b2c3d4e5f6g7h8
+# Creates: _cache/structure_a1b2c3d4e5f6g7h8.json
+#          _cache/fstructure_b2c3d4e5f6g7h8i9.json
 ```
 
 ```
-jny5 extract _cache/fstructure.json --extract <extract.py> 
-# extract.py turns "_cache/fstructure.json" into "_cache/content.json"
+jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
+# Uses: _cache/fstructure_b2c3d4e5f6g7h8i9.json
+# Outputs cache key: c3d4e5f6g7h8i9j0
+# Creates: _cache/content_c3d4e5f6g7h8i9j0.json
 ```
 
 ```
-jny5 reassemble _cache/content.json --assemble <assm.py>
-# assm.py turns "_cache/content.json" into "_cache/content.qmd"
+jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
+# Uses: _cache/content_c3d4e5f6g7h8i9j0.json
+# Outputs cache key: d4e5f6g7h8i9j0k1
+# Creates: _cache/qmd_d4e5f6g7h8i9j0k1.qmd
 ```
 
 ```
-jny5 view _cache/content.qmd
-# views qmd as HTML
+jny5 view --from-cache d4e5f6g7h8i9j0k1
+# Uses: _cache/qmd_d4e5f6g7h8i9j0k1.qmd
+# Views as HTML
 ```
 
 ### Content-Based Caching System
