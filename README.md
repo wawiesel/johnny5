@@ -1,80 +1,60 @@
-# Johnny5
+# Johnny5 — Document Disassembly and Reassembly Framework
 
-**Document disassembly and reassembly framework powered by Docling**
+**Johnny5** is a modular Python package for understanding and reconstructing complex documents.
 
-Johnny5 is a Python package that disassembles PDFs into structured JSON, applies intelligent fixups, and reassembles them into various formats (QMD, HTML) with a beautiful web interface.
+> **⚠️ Alpha Software**: This is early-stage software. Expect breaking changes and rough edges.
 
-## Features
+1. **Disassembles** PDFs into Docling's lossless JSON representation.
+2. Applies a user-defined, hot-reloadable **fixup** layer for structural corrections.
+3. **Extracts** data hidden in structure to a content-only JSON of the user's preference.
+4. Reconstructs rich formats such as QMD.
+5. Serves an interactive FastAPI web interface (powered by PDF.js) to visualize and debug the process.
 
-- 🔍 **PDF Disassembly**: Convert PDFs to lossless JSON using Docling
-- 🔧 **Intelligent Fixups**: Apply custom processing modules for different document types
-- 🌐 **Web Viewer**: Interactive PDF viewer with PDF.js integration
-- 📝 **Multiple Outputs**: Generate Quarto Markdown (.qmd) or HTML
-- ⚡ **Live Reload**: Watch and reload fixup scripts during development
+---
 
-## Installation
+## 🚀 Installation
 
 ```bash
-# Install in development mode
+git clone https://github.com/wawiesel/johnny5.git
 cd johnny5
 pip install -e .
 ```
 
-## Usage
+---
 
-### CLI Commands
+## 🧰 Quick Start
 
 ```bash
-# Disassemble a PDF to JSON
-johnny5 disassemble document.pdf
-
-# Launch web viewer
-johnny5 web document.pdf
-
-# With custom options
-johnny5 disassemble document.pdf --layout-model pubtables --enable-ocr --json-dpi 300
-johnny5 web document.pdf --port 8080
+jny5 view examples/x/sample.pdf
+# starts web server and renders left pane deconstruction only
 ```
 
-### Python API
-
-```python
-from johnny5 import run_decompose, json_to_qmd, run_web
-
-# Disassemble PDF
-run_decompose("document.pdf", layout_model="pubtables", enable_ocr=True)
-
-# Convert JSON to QMD
-json_to_qmd("document.json")
-
-# Launch web viewer
-run_web("document.pdf", port=8000)
+```bash
+cd examples/x
+jny5 view sample.pdf --fixup fixup.py --extract extract.py --reconstruct reconstruct.py
+# renders full reconstruction pipeline
 ```
+ 
+Visit `http://localhost:8000` to explore the PDF structure visually.
 
-## Project Structure
+---
 
-```
-johnny5/
-├── src/johnny5/
-│   ├── cli.py              # Click-based CLI
-│   ├── decomposer.py       # Docling integration
-│   ├── recomposer.py       # JSON → QMD/HTML
-│   ├── server.py           # FastAPI web backend
-│   ├── watcher.py          # Live reload
-│   ├── utils/              # Utility modules
-│   ├── fixups/             # Custom fixup scripts
-│   └── web/                # Web interface assets
-└── pyproject.toml          # Package configuration
-```
+## 🧠 Features
 
-## Development
+* Accurate PDF → JSON conversion using **Docling**
+* Intelligent region & margin detection
+* Hot-reloading fixup scripts
+* QMD/HTML reconstruction
+* Web-based visual comparison of source and reconstructed layouts
 
-The package is structured for easy extension:
+---
 
-- **Fixups**: Add custom processing modules in `fixups/`
-- **Utils**: Extend utility functions in `utils/`
-- **Web**: Customize the web interface in `web/`
+## 🤝 Contributing
 
-## License
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-MIT License - see LICENSE file for details.
+---
+
+## 📜 License
+
+MIT License © 2025 William Wieselquist

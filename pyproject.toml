@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "johnny5"
 version = "0.1.0"
-description = "Decompose, fix, and recompose structured documents using Docling"
+description = "Disassemble, fix, and reassemble structured documents using Docling"
 authors = [{ name = "William Wieselquist" }]
 license = "MIT"
 readme = "README.md"
@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ww5/johnny5"
-Issues = "https://github.com/ww5/johnny5/issues"
+Homepage = "https://github.com/wawiesel/johnny5"
+Issues = "https://github.com/wawiesel/johnny5/issues"
 
 [project.scripts]
 johnny5 = "johnny5.cli:main"
