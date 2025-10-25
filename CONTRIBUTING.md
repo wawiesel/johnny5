@@ -18,14 +18,7 @@ All contributors (humans and automation) must follow the same standards.
 ## 🧪 Testing
 - Framework: **pytest**  
 - Tests mirror the module structure.  
-
-Install hooks for development that run these pre-commit.
-
-```bash
-ruff check .
-black --check .
-pytest
-```
+- Run before committing: `ruff check .`, `black --check .`, `pytest`
 
 ---
 
@@ -36,7 +29,8 @@ pytest
 3. Ensure lint, format, and tests pass.
 4. Commit with [Conventional Commits](https://www.conventionalcommits.org/).
 5. Push and open a PR into `main`.
-6. All commits must be signed.
+6. Wait for review of the PR.
+7. Note: all commits must be signed.
 
 ---
 
