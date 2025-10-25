@@ -48,6 +48,16 @@ jny5 view <pdf> [--fixup <fixup.py> --extract <extract.py> --reconstruct <recons
 
 Johnny5 uses a sophisticated content-based caching system where inputs are checksummed to generate cache keys, and outputs are stored with filenames equal to those cache keys.
 
+#### Content Types
+
+| Type | Description | File Name | Purpose |
+|------|-------------|-----------|---------|
+| **Structure** | Docling lossless JSON structure | `structure.json` | Raw document structure from Docling |
+| **Fixed Structure** | Corrected structure after fixup | `fstructure.json` | Structure with layout model corrections applied |
+| **Content** | Extracted pure content description | `content.json` | Simplified content representation |
+| **Markdown** | Content rendered as text format | `content.qmd` | Human-readable text output |
+| **HTML** | Content rendered for viewing | `content.html` | Web-viewable format |
+
 #### Cache Directory Configuration
 
 Johnny5 uses the `JNY5_HOME` environment variable to determine the cache location:
