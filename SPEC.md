@@ -21,27 +21,27 @@ Johnny5 provides a reproducible, pluggable environment for document disassembly 
 ```bash
 jny5 disassemble <pdf> --fixup <fixup.py>
 # Outputs cache key: a1b2c3d4e5f6g7h8
-# Creates: _cache/structure/a1b2c3d4e5f6g7h8.json (raw)
-#          _cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
+# Creates: ~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json (raw)
+#          ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
 ```
 
 ```bash
 jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
-# Uses: _cache/structure/b2c3d4e5f6g7h8i9.json
+# Uses: ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json
 # Outputs cache key: c3d4e5f6g7h8i9j0
-# Creates: _cache/content/c3d4e5f6g7h8i9j0.json
+# Creates: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
 ```
 
 ```bash
 jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
-# Uses: _cache/content/c3d4e5f6g7h8i9j0.json
+# Uses: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
 # Outputs cache key: d4e5f6g7h8i9j0k1
-# Creates: _cache/qmd/d4e5f6g7h8i9j0k1.qmd
+# Creates: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
 ```
 
 ```bash
 jny5 view --from-cache d4e5f6g7h8i9j0k1
-# Uses: _cache/qmd/d4e5f6g7h8i9j0k1.qmd
+# Uses: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
 # Views as HTML
 ```
 
@@ -49,28 +49,35 @@ jny5 view --from-cache d4e5f6g7h8i9j0k1
 
 Johnny5 uses a sophisticated content-based caching system where inputs are checksummed to generate cache keys, and outputs are stored with filenames equal to those cache keys.
 
+#### Cache Directory Configuration
+
+Johnny5 uses the `JNY5_HOME` environment variable to determine the cache location:
+- **Default**: `~/.jny5` (if `JNY5_HOME` is not set)
+- **Cache directory**: `{JNY5_HOME}/cache/`
+- **Example**: With `JNY5_HOME=/opt/johnny5`, cache files are stored in `/opt/johnny5/cache/`
+
 #### Cache Key Generation
 
 Each stage generates a cache key by checksumming all relevant inputs. The cache key is a 16-character SHA-256 hash derived from the sorted JSON representation of all input content.
 
 #### Cache Key Sources by Stage
 
-| Stage         | Cache Key Sources                    | Example Key      |
-|---------------|--------------------------------------|------------------|
-| **Disassemble** | PDF content + Docling options        | `a1b2c3d4e5f6g7h8` |
-| **Fixup**       | structure.json content + fixup.py content | `b2c3d4e5f6g7h8i9` |
-| **Extract**     | fstructure.json content + extract.py content | `c3d4e5f6g7h8i9j0` |
-| **Reassemble**  | content.json content + assemble.py content | `d4e5f6g7h8i9j0k1` |
+| Stage           | Cache Key Sources                           | Example Key        |
+|-----------------|---------------------------------------------|--------------------|
+| **Disassemble** | PDF content + Docling options               | `a1b2c3d4e5f6g7h8` |
+| **Fixup**       | structure.json content + fixup.py content   | `b2c3d4e5f6g7h8i9` |
+| **Extract**     | fstructure.json content + extract.py content| `c3d4e5f6g7h8i9j0` |
+| **Reassemble**  | content.json content + assemble.py content  | `d4e5f6g7h8i9j0k1` |
 
 #### Cache File Naming
 
-All cache files use subdirectories with consistent naming: `_cache/{stage}/{cache_key}.{ext}`
+All cache files use subdirectories with consistent naming: `{JNY5_HOME}/cache/{stage}/{cache_key}.{ext}`
 
 Examples:
-- `_cache/structure/a1b2c3d4e5f6g7h8.json` (raw Docling output)
-- `_cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure, same dir as raw)
-- `_cache/content/c3d4e5f6g7h8i9j0.json`
-- `_cache/qmd/d4e5f6g7h8i9j0k1.qmd`
+- `~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json` (raw Docling output)
+- `~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure, same dir as raw)
+- `~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json`
+- `~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd`
 
 **Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file.
 
@@ -79,27 +86,27 @@ Examples:
 ```
 jny5 disassemble <pdf> --fixup <fixup.py>
 # Outputs cache key: a1b2c3d4e5f6g7h8
-# Creates: _cache/structure/a1b2c3d4e5f6g7h8.json (raw)
-#          _cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
+# Creates: ~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json (raw)
+#          ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
 ```
 
 ```
 jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
-# Uses: _cache/structure/b2c3d4e5f6g7h8i9.json
+# Uses: ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json
 # Outputs cache key: c3d4e5f6g7h8i9j0
-# Creates: _cache/content/c3d4e5f6g7h8i9j0.json
+# Creates: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
 ```
 
 ```
 jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
-# Uses: _cache/content/c3d4e5f6g7h8i9j0.json
+# Uses: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
 # Outputs cache key: d4e5f6g7h8i9j0k1
-# Creates: _cache/qmd/d4e5f6g7h8i9j0k1.qmd
+# Creates: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
 ```
 
 ```
 jny5 view --from-cache d4e5f6g7h8i9j0k1
-# Uses: _cache/qmd/d4e5f6g7h8i9j0k1.qmd
+# Uses: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
 # Views as HTML
 ```
 
@@ -186,10 +193,10 @@ q: is an image that represents the content of the content.json
 
 | Stage       | Input Sources    | Cache Key Sources                    | Output Files                        | Cache Key Output |
 |-------------|------------------|--------------------------------------|-------------------------------------|------------------|
-| Disassemble | PDF file         | PDF content + Docling options        | `_cache/structure/{key}.json` (raw)<br>`_cache/structure/{key}.json` (fixed) | `a1b2c3d4e5f6g7h8` |
-| Fixup       | structure cache  | structure.json + fixup.py            | `_cache/structure/{key}.json`       | `b2c3d4e5f6g7h8i9` |
-| Extract     | structure cache  | fstructure.json + extract.py        | `_cache/content/{key}.json`         | `c3d4e5f6g7h8i9j0` |
-| Reassemble  | content cache    | content.json + assemble.py           | `_cache/qmd/{key}.qmd`              | `d4e5f6g7h8i9j0k1` |
+| Disassemble | PDF file         | PDF content + Docling options        | `{JNY5_HOME}/cache/structure/{key}.json` (raw)<br>`{JNY5_HOME}/cache/structure/{key}.json` (fixed) | `a1b2c3d4e5f6g7h8` |
+| Fixup       | structure cache  | structure.json + fixup.py            | `{JNY5_HOME}/cache/structure/{key}.json`       | `b2c3d4e5f6g7h8i9` |
+| Extract     | structure cache  | fstructure.json + extract.py        | `{JNY5_HOME}/cache/content/{key}.json`         | `c3d4e5f6g7h8i9j0` |
+| Reassemble  | content cache    | content.json + assemble.py           | `{JNY5_HOME}/cache/qmd/{key}.qmd`              | `d4e5f6g7h8i9j0k1` |
 
 ### Cache Key Flow
 
