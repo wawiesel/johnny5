@@ -19,10 +19,16 @@ All contributors (humans and automation) must follow the same standards.
 - Framework: **pytest**  
 - Tests mirror the module structure.  
 
-## 🔧 Pre-commit Hooks
+## 🔧 Development Setup
 
-Install pre-commit hooks to automatically run code quality checks:
+### Virtual Environment
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e .
+```
 
+### Pre-commit Hooks
 ```bash
 pip install pre-commit
 pre-commit install
