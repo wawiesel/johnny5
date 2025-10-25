@@ -78,3 +78,5 @@ The package is structured for easy extension:
 ## License
 
 MIT License - see LICENSE file for details.
+
+check
