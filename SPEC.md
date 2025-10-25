@@ -169,11 +169,6 @@ def assemble(content: dict) -> str:
 | Extract     | structure cache  | fstructure.json + extract.py        | `{JNY5_HOME}/cache/content/{key}.json`         | `c3d4e5f6g7h8i9j0` |
 | Reassemble  | content cache    | content.json + assemble.py           | `{JNY5_HOME}/cache/qmd/{key}.qmd`              | `d4e5f6g7h8i9j0k1` |
 
-### Cache Key Flow
-
-```
-PDF → [a1b2c3d4e5f6g7h8] → structure.json + fixup.py → [b2c3d4e5f6g7h8i9] → fstructure.json + extract.py → [c3d4e5f6g7h8i9j0] → content.json + assemble.py → [d4e5f6g7h8i9j0k1] → qmd
-```
 
 ---
 
