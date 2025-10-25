@@ -1,14 +1,3 @@
 # Code owners for Johnny5 project
 
-# Core maintainer for all files
-* @ww5
-
-# Web interface specialist
-src/johnny5/web/* @ww5
-src/johnny5/server.py @ww5
-
-# Core architecture files
-src/johnny5/cli.py @ww5
-src/johnny5/decomposer.py @ww5
-src/johnny5/recomposer.py @ww5
-pyproject.toml @ww5
+* @wawiesel
