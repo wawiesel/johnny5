@@ -15,7 +15,21 @@
 - **utils**: pure functions (density, margins, context building).
 - **fixups**: user-provided functions (per-PDF heuristics).
 
-### 1.2 Data Flow
+### 1.2 CLI Commands
+
+The CLI provides the core commands specified in SPEC.md plus convenience commands:
+
+**Core Commands (from SPEC.md):**
+- `jny5 disassemble <pdf>` - Disassemble PDF to JSON
+- `jny5 extract <extract.py> --from-cache <key>` - Extract content from structure
+- `jny5 reconstruct <reconstruct.py> --from-cache <key>` - Reconstruct QMD from content
+- `jny5 view <pdf>` - Launch web viewer
+
+**Convenience Commands (not in SPEC.md):**
+- `jny5 to-pdf <file>` - Render file to PDF based on file extension (currently supports .qmd using Quarto)
+- `jny5 check <file>` - Check file for quality issues based on file extension (currently supports .qmd)
+
+### 1.3 Data Flow
 ```
 PDF (input)
 └─ disassembler.run_disassemble(pdf, fixup.py)
@@ -31,7 +45,7 @@ PDF (input)
 └─ WS /events (hot-reload pings)
 ```
 
-### 1.3 Processes & Hot Reload
+### 1.4 Processes & Hot Reload
 - `watcher` watches:
   - fixup modules under `src/johnny5/fixups/` and user-provided paths
   - cache files in `{JNY5_HOME}/cache/structure/`

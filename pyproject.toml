@@ -27,7 +27,7 @@ Homepage = "https://github.com/wawiesel/johnny5"
 Issues = "https://github.com/wawiesel/johnny5/issues"
 
 [project.scripts]
-johnny5 = "johnny5.cli:main"
+jny5 = "johnny5.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/johnny5"]
