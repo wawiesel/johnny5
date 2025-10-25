@@ -37,11 +37,11 @@ def test_decomposer_placeholder():
 
     # Test that the function exists and has the right signature
     sig = inspect.signature(run_decompose)
-    assert "pdf_path" in sig.parameters
+    assert "pdf" in sig.parameters
     assert "layout_model" in sig.parameters
     assert "enable_ocr" in sig.parameters
     assert "json_dpi" in sig.parameters
-    assert "fixup_module" in sig.parameters
+    assert "fixup" in sig.parameters
 
 
 def test_recomposer_placeholder():
