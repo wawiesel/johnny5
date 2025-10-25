@@ -124,7 +124,7 @@ PDF (input)
 ## 6. Security
 
 * Never execute arbitrary code outside designated fixup module path.
-* Optional sandbox: if user supplies external path, require explicit `--allow-external-fixup`.
+* Sandbox: if user supplies external path, require explicit `--allow-external-fixup`.
 
 ## 7. Testing Strategy
 
