@@ -2,7 +2,7 @@
 
 **Document decomposition and recomposition framework powered by Docling**
 
-Johnny5 is a Python package that disassembles PDFs into structured JSON, applies intelligent fixups, and reassembles them into various formats (QMD, HTML) with a beautiful web interface.
+Johnny5 is a Python package that disassembles PDFs into structured JSON, applies intelligent fixups, and reassembles them into various formats (QMD, HTML) with a beautiful web interface for document processing workflows.
 
 ## Features
 
