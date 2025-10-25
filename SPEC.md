@@ -66,12 +66,12 @@ def generate_cache_key(inputs: dict) -> str:
 
 #### Cache Key Sources by Stage
 
-| Stage | Cache Key Sources | Example Key |
-|-------|------------------|-------------|
-| **Disassemble** | PDF content + Docling options | `a1b2c3d4e5f6g7h8` |
-| **Fixup** | structure.json content + fixup.py content | `b2c3d4e5f6g7h8i9` |
-| **Extract** | fstructure.json content + extract.py content | `c3d4e5f6g7h8i9j0` |
-| **Reassemble** | content.json content + assemble.py content | `d4e5f6g7h8i9j0k1` |
+| Stage       | Cache Key Sources                    | Example Key      |
+|-------------|--------------------------------------|------------------|
+| **Disassemble** | PDF content + Docling options        | `a1b2c3d4e5f6g7h8` |
+| **Fixup**       | structure.json content + fixup.py content | `b2c3d4e5f6g7h8i9` |
+| **Extract**     | fstructure.json content + extract.py content | `c3d4e5f6g7h8i9j0` |
+| **Reassemble**  | content.json content + assemble.py content | `d4e5f6g7h8i9j0k1` |
 
 #### Cache File Naming
 
@@ -195,12 +195,12 @@ q: is an image that represents the content of the content.json
 
 ## 3. Data Artifacts
 
-| Stage       | Input Sources | Cache Key Sources | Output Files | Cache Key Output |
-| ----------- | ------------- | ----------------- | ------------ | ---------------- |
-| Disassemble | PDF file | PDF content + Docling options | `_cache/structure/{key}.json` (raw)<br>`_cache/structure/{key}.json` (fixed) | `a1b2c3d4e5f6g7h8` |
-| Fixup       | structure cache | structure.json + fixup.py | `_cache/structure/{key}.json` | `b2c3d4e5f6g7h8i9` |
-| Extract     | structure cache | fstructure.json + extract.py | `_cache/content/{key}.json` | `c3d4e5f6g7h8i9j0` |
-| Reassemble  | content cache | content.json + assemble.py | `_cache/qmd/{key}.qmd` | `d4e5f6g7h8i9j0k1` |
+| Stage       | Input Sources    | Cache Key Sources                    | Output Files                        | Cache Key Output |
+|-------------|------------------|--------------------------------------|-------------------------------------|------------------|
+| Disassemble | PDF file         | PDF content + Docling options        | `_cache/structure/{key}.json` (raw)<br>`_cache/structure/{key}.json` (fixed) | `a1b2c3d4e5f6g7h8` |
+| Fixup       | structure cache  | structure.json + fixup.py            | `_cache/structure/{key}.json`       | `b2c3d4e5f6g7h8i9` |
+| Extract     | structure cache  | fstructure.json + extract.py        | `_cache/content/{key}.json`         | `c3d4e5f6g7h8i9j0` |
+| Reassemble  | content cache    | content.json + assemble.py           | `_cache/qmd/{key}.qmd`              | `d4e5f6g7h8i9j0k1` |
 
 ### Cache Key Flow
 
