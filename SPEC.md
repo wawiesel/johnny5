@@ -52,7 +52,7 @@ jny5 view content.qmd
 │ │ ┌───────────────────────────┐│││ ┌──────────────────────────┐ │            │
 │ │ │  d  |X-Density Banner | p ││││ │ X-Density Banner   | q   │ │            │
 │ │ ├─────┬─────────────────┬───┤│││ ├──────────────────────────┤ │            │
-│ │ │     │                 │   ││││ │ [ JSON | QMD | HTML ] Tabs|     │ │            │
+│ │ │     │                 │   ││││ │ [ JSON | QMD | HTML ]     │ │            │
 │ │ │ Y-  │   Annotated     │An-││││ │ Reassembled Output |  Y  │ │            │
 │ │ │ Den │     PDF +       │not││││ │                    |  d  │ │            │
 │ │ │ sity│   Toggleable    │at-││││ │                    |  e  │ │            │
