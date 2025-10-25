@@ -18,28 +18,28 @@ Johnny5 provides a reproducible, pluggable environment for document disassembly 
 
 ### CLI Commands
 
-```
+```bash
 jny5 disassemble <pdf> --fixup <fixup.py>
 # Outputs cache key: a1b2c3d4e5f6g7h8
 # Creates: _cache/structure/a1b2c3d4e5f6g7h8.json (raw)
 #          _cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
 ```
 
-```
+```bash
 jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
 # Uses: _cache/structure/b2c3d4e5f6g7h8i9.json
 # Outputs cache key: c3d4e5f6g7h8i9j0
 # Creates: _cache/content/c3d4e5f6g7h8i9j0.json
 ```
 
-```
+```bash
 jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
 # Uses: _cache/content/c3d4e5f6g7h8i9j0.json
 # Outputs cache key: d4e5f6g7h8i9j0k1
 # Creates: _cache/qmd/d4e5f6g7h8i9j0k1.qmd
 ```
 
-```
+```bash
 jny5 view --from-cache d4e5f6g7h8i9j0k1
 # Uses: _cache/qmd/d4e5f6g7h8i9j0k1.qmd
 # Views as HTML
@@ -51,18 +51,7 @@ Johnny5 uses a sophisticated content-based caching system where inputs are check
 
 #### Cache Key Generation
 
-Each stage generates a cache key by checksumming all relevant inputs:
-
-```python
-import hashlib
-import json
-
-def generate_cache_key(inputs: dict) -> str:
-    """Generate SHA-256 cache key from input content."""
-    # Sort keys for deterministic hashing
-    content = json.dumps(inputs, sort_keys=True, separators=(',', ':'))
-    return hashlib.sha256(content.encode()).hexdigest()[:16]  # 16-char key
-```
+Each stage generates a cache key by checksumming all relevant inputs. The cache key is a 16-character SHA-256 hash derived from the sorted JSON representation of all input content.
 
 #### Cache Key Sources by Stage
 
