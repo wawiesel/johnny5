@@ -25,12 +25,12 @@ pip install -e .
 ## 🧰 Quick Start
 
 ```bash
-jny5 view examples/sample.pdf
+jny5 view examples/x/sample.pdf
 # starts web server and renders left pane deconstruction only
 ```
 
 ```bash
-cd examples/
+cd examples/x
 jny5 view sample.pdf --fixup fixup.py --extract extract.py --reconstruct reconstruct.py
 # renders full reconstruction pipeline
 ```
