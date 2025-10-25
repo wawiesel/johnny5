@@ -52,7 +52,7 @@ jny5 view content.qmd
 │ │ ┌───────────────────────────┐│││ ┌──────────────────────────┐ │            │
 │ │ │  d  |X-Density Banner | p ││││ │ X-Density Banner   | q   │ │            │
 │ │ ├─────┬─────────────────┬───┤│││ ├──────────────────────────┤ │            │
-│ │ │     │                 │   ││││ │ [ QMD | HTML ] Tabs|     │ │            │
+│ │ │     │                 │   ││││ │ [ JSON | QMD | HTML ] Tabs|     │ │            │
 │ │ │ Y-  │   Annotated     │An-││││ │ Reassembled Output |  Y  │ │            │
 │ │ │ Den │     PDF +       │not││││ │                    |  d  │ │            │
 │ │ │ sity│   Toggleable    │at-││││ │                    |  e  │ │            │
@@ -60,10 +60,15 @@ jny5 view content.qmd
 │ │ │     │     Boxes       │s  ││││ │                    |  s  │ │            │
 │ │ │     │                 │   ││││ │                    |     │ │            │
 │ │ ├─────┴─────────────────┴───┤│││ ├──────────────────────────┤ │            │
-│ │ │    Disassembly Log        ││││ │    Reconstruction L|     │ │            │
-│ │ │    (Terminal Output)      ││││ │    Log             |     │ │            │
+│ │ │    Disassembly Log        ││││ │    Reconstruction Log    │ │            │
+│ │ │    (Terminal Output)      ││││ │    (Terminal Output)     │ │            │
 │ │ └───────────────────────────┘│││ └──────────────────────────┘ │            │
 │ └──────────────────────────────┘│└──────────────────────────────┘            │
 │                      ↑ Shared vertical scroll bar ↓                          │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
+
+```
+d: is an image that represents the content of the original document, it changes when the underlying PDF changes or if the Docling processing options change
+p: is an image that represents the content of the fixup JSON (if d==p no fixups are needed)
+q: is an image that represents the content of the content.json

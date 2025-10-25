@@ -60,15 +60,15 @@ PDF (input)
 - FastAPI (async) with:
   - `GET /` → Johnny5 Web Interface with split-pane layout:
     - **Left Pane (Disassembly)**: 
-      - X-Density banner above PDF
+      - X-Density banner above PDF with image indicators (d: original document, p: fixup JSON)
       - Y-Density banner to left of PDF
       - Annotated PDF with toggleable bounding boxes in center
       - Right gutter with annotations connected to bounding boxes
       - Terminal-like disassembly log at bottom
     - **Right Pane (Reconstruction)**:
-      - X-Density banner above content
+      - X-Density banner above content with image indicator (q: content.json)
       - Y-Density banner to right of content
-      - QMD/HTML Tabs with reassembled output
+      - JSON/QMD/HTML Tabs with reassembled output
       - Terminal-like reconstruction log at bottom
     - **Shared vertical scroll bar** for synchronized scrolling
   - `GET /doc` → metadata (page count, sizes).
