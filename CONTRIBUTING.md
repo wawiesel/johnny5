@@ -21,10 +21,6 @@ All contributors (humans and automation) must follow the same standards.
 
 - Framework: **pytest**  
 - Tests mirror the module structure.
-- **Unit tests**: Per util + module contracts
-- **Golden files**: Cache outputs on small fixtures (structure, content, qmd stages)
-- **Web tests**: Starlette TestClient for JSON endpoints; smoke test for index
-- **Cache key generation tests**: Ensure deterministic outputs
 
 ### Running Tests
 

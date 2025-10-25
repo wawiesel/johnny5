@@ -121,8 +121,8 @@ Each Python script must export a single callable with the following signatures:
 
 ```python
 # fixup.py
-def fixup(ctx: FixupContext) -> None | dict | list[dict] | str:
-    """Return None (no change), a replacement cluster, a list (split), or label override (str)."""
+def fixup(structure: dict) -> dict:
+    """Return modified structure JSON."""
 
 # extract.py
 def extract(fstructure: dict) -> dict:
@@ -171,15 +171,3 @@ def reconstruct(content: dict) -> str:
 - **Synchronized scrolling**: The vertical scroll bar must scroll both panes simultaneously to maintain alignment between disassembly and reconstruction views
 - **Responsive**: The web UI must be responsive to movements.
 - **Beautiful**: The PDF render should be crisp and easy to read.
-
-### Error Handling
-
-Johnny5 uses structured error handling with specific error types:
-
-- **CLI Commands**: Raise `Johnny5Error` (base) with specific subclasses:
-  - `DoclingError`: PDF parsing or Docling processing failures
-  - `FixupLoadError`: Fixup module loading or syntax errors
-  - `FixupRuntimeError`: Runtime errors during fixup execution
-  - `InvalidJsonError`: JSON parsing or validation errors
-- **Web Server**: Returns `4xx/5xx` JSON responses with `code`, `message`, `detail` fields
-- **Logging**: All error messages go to stderr, never stdout
