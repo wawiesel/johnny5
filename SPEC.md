@@ -160,19 +160,11 @@ def assemble(content: dict) -> str:
 
 ---
 
-## 3. Data Artifacts
-
-| Stage       | Input Sources    | Cache Key Sources                    | Output Files                        | Cache Key Output |
-|-------------|------------------|--------------------------------------|-------------------------------------|------------------|
-| Disassemble | PDF file         | PDF content + Docling options        | `{JNY5_HOME}/cache/structure/{key}.json` (raw)<br>`{JNY5_HOME}/cache/structure/{key}.json` (fixed) | `a1b2c3d4e5f6g7h8` |
-| Fixup       | structure cache  | structure.json + fixup.py            | `{JNY5_HOME}/cache/structure/{key}.json`       | `b2c3d4e5f6g7h8i9` |
-| Extract     | structure cache  | fstructure.json + extract.py        | `{JNY5_HOME}/cache/content/{key}.json`         | `c3d4e5f6g7h8i9j0` |
-| Reassemble  | content cache    | content.json + assemble.py           | `{JNY5_HOME}/cache/qmd/{key}.qmd`              | `d4e5f6g7h8i9j0k1` |
 
 
 ---
 
-## 4. Error Handling
+## 3. Error Handling
 
 All stages must raise a subclass of `Johnny5Error` with structured error information:
 
@@ -188,7 +180,7 @@ This ensures consistent error reporting for both CLI and web interfaces.
 
 ---
 
-## 5. Testing and Automation
+## 4. Testing and Automation
 
 ### Golden Fixtures
 
