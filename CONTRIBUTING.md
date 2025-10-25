@@ -17,7 +17,14 @@ All contributors (humans and automation) must follow the same standards.
 
 ## 🧪 Testing
 - Framework: **pytest**  
-- Tests mirror the module structure.  
+- Tests mirror the module structure.
+
+### Running Tests
+```bash
+pytest                    # Run all tests
+pytest -v                 # Verbose output
+pytest tests/test_basic.py # Run specific test file
+```  
 
 ## 🔧 Development Setup
 
