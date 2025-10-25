@@ -9,7 +9,7 @@ Johnny5 provides a reproducible, pluggable environment for document disassembly 
 1. **Disassemble PDFs** into a structured, lossless JSON using Docling.
 2. **Apply a python code fixup** for aided disassembly with hot reload.
 3. **Define a python code extraction spec** for aided extraction to a content JSON with hot reload.
-4. **Define a python code assembler spec** for creation of a text document from that JSON only.
+4. **Define a python code reconstruct spec** for creation of a text document from that JSON only.
 5. **Provide a web interface** for inspection and debugging.
 
 ---
@@ -66,7 +66,7 @@ Each stage generates a cache key by checksumming all relevant inputs. The cache 
 | **Disassemble** | PDF content + Docling options               | `a1b2c3d4e5f6g7h8` |
 | **Fixup**       | structure.json content + fixup.py content   | `b2c3d4e5f6g7h8i9` |
 | **Extract**     | fstructure.json content + extract.py content| `c3d4e5f6g7h8i9j0` |
-| **reconstruct**  | content.json content + assemble.py content  | `d4e5f6g7h8i9j0k1` |
+| **Reconstruct** | content.json content + reconstruct.py content | `d4e5f6g7h8i9j0k1` |
 
 #### Cache File Naming
 
@@ -88,9 +88,9 @@ Every command outputs its generated cache key to stdout for chaining:
 ```bash
 # Example workflow
 STRUCTURE_KEY=$(jny5 disassemble document.pdf --fixup fixup.py)
-FSTRUCTURE_KEY=$(jny5 extract --extract extract.py --from-cache $STRUCTURE_KEY)
-CONTENT_KEY=$(jny5 reconstruct --assemble assemble.py --from-cache $FSTRUCTURE_KEY)
-jny5 view --from-cache $CONTENT_KEY
+FSTRUCTURE_KEY=$(jny5 extract extract.py --from-cache $STRUCTURE_KEY)
+CONTENT_KEY=$(jny5 reconstruct reconstruct.py --from-cache $FSTRUCTURE_KEY)
+jny5 view document.pdf --fixup fixup.py --extract extract.py --reconstruct reconstruct.py
 ```
 
 #### Cache Benefits
@@ -131,7 +131,7 @@ def reconstruct(content: dict) -> str:
 │ │ │  d  |     X-Density   | p │ │ # │ │       X-Density    | q   │ │   │
 │ │ ├─────┬─────────────────┬───┤ │ # │ ├──────────────────────────┤ │   │
 │ │ │     │                 │   │ │ # │ │                    |     │ │   │
-│ │ │ Y-  │   Annotated     │An-│ │ # │ │ Reconstructd       |  Y- │ │   │
+│ │ │ Y-  │   Annotated     │An-│ │ # │ │ Reconstructed       |  Y- │ │   │
 │ │ │ Den │     PDF +       │not│ │ # │ │ Content            | Den │ │   │
 │ │ │ sity│   Toggleable    │at-│ │ # │ │ [JSON|QMD|HTML]    │ sity│ │   │
 │ │ │     │   Bounding      │ion│ │ # │ │                    │     │ │   │
