@@ -4,44 +4,23 @@ All contributors (humans and automation) must follow the same standards.
 
 ---
 
-## 🧱 Repository Layout
-
-```
-src/johnny5/
-├── cli.py
-├── disassembler.py
-├── reassembler.py
-├── server.py
-├── watcher.py
-├── utils/
-│   ├── density.py
-│   ├── margins.py
-│   └── fixup_context.py
-├── fixups/
-│   └── example_fixup.py
-└── tests/
-```
-
----
-
 ## 🧩 Coding Standards
 - Python ≥ 3.9  
-- 100-character line limit (Black + Ruff)  
+- 100-character line limit (Black + Ruff)
+- 50-line function limit
 - Full type hints required  
 - Use `pathlib.Path`, not raw strings  
 - Use `logging`, not `print()`  
-- No mutable globals except explicit `_cache`  
-- Public functions must have complete docstrings (Args, Returns, Raises)
+- No mutable globals  
 
 ---
 
 ## 🧪 Testing
 - Framework: **pytest**  
 - Tests mirror the module structure.  
-- Fixtures live in `tests/fixtures/`.  
-- Each new function/class must include at least one test.
 
-Run before committing:
+Install hooks for development that run these pre-commit.
+
 ```bash
 ruff check .
 black --check .
@@ -57,7 +36,7 @@ pytest
 3. Ensure lint, format, and tests pass.
 4. Commit with [Conventional Commits](https://www.conventionalcommits.org/).
 5. Push and open a PR into `main`.
-6. All commits must be signed (SSH or GPG).
+6. All commits must be signed.
 
 ---
 

@@ -2,11 +2,11 @@
 
 **Johnny5** is a modular Python package for understanding and reconstructing complex documents.
 
-It:
 1. **Disassembles** PDFs into Docling's lossless JSON representation.
 2. Applies a user-defined, hot-reloadable **fixup** layer for structural corrections.
-3. **Reconstructs** corrected data into rich formats such as QMD and HTML.
-4. Serves an interactive FastAPI web interface (powered by PDF.js) to visualize and debug the process.
+3. **Extracts** data hidden in structure to a content-only JSON of the user's preference.
+4. Reconstructs rich formats such as QMD.
+5. Serves an interactive FastAPI web interface (powered by PDF.js) to visualize and debug the process.
 
 ---
 
@@ -18,25 +18,21 @@ cd johnny5
 pip install -e .
 ```
 
-Requirements:
-
-* Python ≥ 3.9
-* macOS, Linux, or Windows
-
 ---
 
 ## 🧰 Quick Start
 
 ```bash
-# Open the web viewer with a PDF
-jny5 view examples/sample.pdf
-
-# Or run the full pipeline manually
-jny5 disassemble examples/sample.pdf --fixup fixup.py
-jny5 extract extract.py --from-cache <cache-key>
-jny5 reconstruct reconstruct.py --from-cache <cache-key>
+jny5 view examples/x/sample.pdf
+# starts web server and renders left pane deconstruction only
 ```
 
+```bash
+cd examples/x
+jny5 view sample.pdf --fixup fixup.py --extract extract.py --reconstruct reconstruct.py
+# renders full reconstruction pipeline
+```
+ 
 Visit `http://localhost:8000` to explore the PDF structure visually.
 
 ---

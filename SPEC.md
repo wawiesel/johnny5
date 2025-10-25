@@ -53,7 +53,7 @@ Johnny5 uses a sophisticated content-based caching system where inputs are check
 | Type              | Description                                    | Shortcut Reference |
 |-------------------|------------------------------------------------|--------------------|
 | **Structure**     | Docling lossless JSON structure                | `structure.json`   |
-| **Fixed Structure** | Corrected structure after fixup              | `fstructure.json`  |
+| **Structure**     | Corrected structure after fixup                | `fstructure.json`  |
 | **Content**       | Extracted pure content description             | `content.json`     |
 | **Markdown**      | Content rendered as text format                | `content.qmd`      |
 | **HTML**          | Content rendered for viewing                   | `content.html`     |
