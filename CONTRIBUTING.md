@@ -18,7 +18,17 @@ All contributors (humans and automation) must follow the same standards.
 ## 🧪 Testing
 - Framework: **pytest**  
 - Tests mirror the module structure.  
-- Run before committing: `ruff check .`, `black --check .`, `pytest`
+
+## 🔧 Pre-commit Hooks
+
+Install pre-commit hooks to automatically run code quality checks:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+This will run `ruff check`, `ruff-format`, and `mypy` on every commit.
 
 ---
 
