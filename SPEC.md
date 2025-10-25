@@ -82,18 +82,20 @@ Each stage generates a cache key by checksumming all relevant inputs. The cache 
 
 All cache files use subdirectories with consistent naming: `{JNY5_HOME}/cache/{stage}/{cache_key}.{ext}`
 
-Examples:
+**Structure Stage**: Both raw Docling output and fixup-processed structure files are stored in the same `structure/` directory:
 - `~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json` (raw Docling output)
-- `~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure, same dir as raw)
-- `~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json`
-- `~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd`
+- `~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure after fixup)
 
-**Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file.
+**Other Stages**:
+- `~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json` (extracted content)
+- `~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd` (reconstructed QMD)
+
+**Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file. The raw and fixed files can coexist in the same directory with different cache keys.
 
 
 #### Cache Key Emission
 
-Every command outputs its generated cache key to stdout for chaining:
+Every command outputs its generated cache key to stdout for chaining. All logging, progress, and diagnostic information goes to stderr to avoid interfering with cache key capture.
 
 ```bash
 # Example workflow
@@ -114,6 +116,8 @@ jny5 view document.pdf --fixup fixup.py --extract extract.py --reconstruct recon
 ### Python Module Callable Contracts
 
 Each Python script must export a single callable with the following signatures:
+
+**Note**: `FixupContext` provides page index, page size (points), cluster data, style flags (bold/italic), normalized coordinates, and helper methods like `is_bold()`, `near_left_margin()`, etc.
 
 ```python
 # fixup.py

@@ -15,17 +15,9 @@
 - **utils**: pure functions (density, margins, context building).
 - **fixups**: user-provided functions (per-PDF heuristics).
 
-### 1.2 CLI Commands
+### 1.2 CLI Implementation
 
-The CLI provides the core commands specified in SPEC.md plus convenience commands:
-
-**Core Commands (from SPEC.md):**
-- `jny5 disassemble <pdf>` - Disassemble PDF to JSON
-- `jny5 extract <extract.py> --from-cache <key>` - Extract content from structure
-- `jny5 reconstruct <reconstruct.py> --from-cache <key>` - Reconstruct QMD from content
-- `jny5 view <pdf>` - Launch web viewer
-
-**Convenience Commands (not in SPEC.md):**
+**Convenience Commands** (beyond SPEC.md requirements):
 - `jny5 to-pdf <file>` - Render file to PDF based on file extension (currently supports .qmd using Quarto)
 - `jny5 check <file>` - Check file for quality issues based on file extension (currently supports .qmd)
 
@@ -58,6 +50,7 @@ PDF (input)
   - Generates cache key from PDF content and fixup file
   - Writes `{JNY5_HOME}/cache/structure/{cache_key}.json` (structure with fixup applied)
   - Returns cache key for downstream use
+  - **CLI Output**: See SPEC.md for cache key emission and logging behavior
 - Implementation notes:
   - Use Docling (pdfium backend). Store metadata with options + file hash.
   - Fixup loading: execute fixup.py with `FixupContext`.
@@ -68,6 +61,7 @@ PDF (input)
   - Converts structure JSON into content JSON using extractor.py
   - Writes `{JNY5_HOME}/cache/content/{new_cache_key}.json`
   - Returns new cache key for downstream use
+  - **CLI Output**: See SPEC.md for cache key emission and logging behavior
 
 ### 2.3 reconstructor.py
 - `run_reconstruct(cache_key: str, reconstructor: Path) -> str`
@@ -118,17 +112,11 @@ PDF (input)
 
 - Cache: `{JNY5_HOME}/cache/{stage}/{cache_key}.{ext}` where stage is `structure`, `content`, or `qmd`
 - Module names: `disassembler.py`, `extractor.py`, `reconstructor.py`, not verbs in function names except `run_*`
-- Fixup signature:
-  ```python
-  def fixup(ctx: FixupContext) -> None | dict | list[dict] | str:
-      """Return None (no change), a replacement cluster, a list (split), or label override (str)."""
-  ```
+- Fixup signature: According to @SPEC.md
 
 ## 4. Error Handling
 
-* Raise `Johnny5Error` (base) with specific subclasses:
-  * `DoclingError`, `FixupLoadError`, `FixupRuntimeError`, `InvalidJsonError`.
-* Server returns `4xx/5xx` JSON with `code`, `message`, `detail`.
+See SPEC.md for error handling specifications. Implementation follows the structured error hierarchy defined there.
 
 ## 5. Performance
 
@@ -143,10 +131,7 @@ PDF (input)
 
 ## 7. Testing Strategy
 
-* Unit tests per util + module contracts.
-* Golden files for cache outputs on small fixtures (structure, content, qmd stages).
-* Web tests: Starlette TestClient for JSON endpoints; smoke test for index.
-* Cache key generation tests to ensure deterministic outputs.
+See CONTRIBUTING.md for testing framework and approach. Implementation follows pytest with unit tests, golden files, web tests, and cache key generation tests.
 
 ## 8. Non-Goals (for now)
 
