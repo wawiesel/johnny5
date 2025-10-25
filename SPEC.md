@@ -21,13 +21,13 @@ Johnny5 provides a reproducible, pluggable environment for document disassembly 
 ```
 jny5 disassemble <pdf> --fixup <fixup.py>
 # Outputs cache key: a1b2c3d4e5f6g7h8
-# Creates: _cache/structure/a1b2c3d4e5f6g7h8.json
-#          _cache/fstructure/b2c3d4e5f6g7h8i9.json
+# Creates: _cache/structure/a1b2c3d4e5f6g7h8.json (raw)
+#          _cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
 ```
 
 ```
 jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
-# Uses: _cache/fstructure/b2c3d4e5f6g7h8i9.json
+# Uses: _cache/structure/b2c3d4e5f6g7h8i9.json
 # Outputs cache key: c3d4e5f6g7h8i9j0
 # Creates: _cache/content/c3d4e5f6g7h8i9j0.json
 ```
@@ -78,23 +78,25 @@ def generate_cache_key(inputs: dict) -> str:
 All cache files use subdirectories with consistent naming: `_cache/{stage}/{cache_key}.{ext}`
 
 Examples:
-- `_cache/structure/a1b2c3d4e5f6g7h8.json`
-- `_cache/fstructure/b2c3d4e5f6g7h8i9.json`
+- `_cache/structure/a1b2c3d4e5f6g7h8.json` (raw Docling output)
+- `_cache/structure/b2c3d4e5f6g7h8i9.json` (fixed structure, same dir as raw)
 - `_cache/content/c3d4e5f6g7h8i9j0.json`
 - `_cache/qmd/d4e5f6g7h8i9j0k1.qmd`
+
+**Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file.
 
 #### Updated CLI Commands
 
 ```
 jny5 disassemble <pdf> --fixup <fixup.py>
 # Outputs cache key: a1b2c3d4e5f6g7h8
-# Creates: _cache/structure/a1b2c3d4e5f6g7h8.json
-#          _cache/fstructure/b2c3d4e5f6g7h8i9.json
+# Creates: _cache/structure/a1b2c3d4e5f6g7h8.json (raw)
+#          _cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
 ```
 
 ```
 jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
-# Uses: _cache/fstructure/b2c3d4e5f6g7h8i9.json
+# Uses: _cache/structure/b2c3d4e5f6g7h8i9.json
 # Outputs cache key: c3d4e5f6g7h8i9j0
 # Creates: _cache/content/c3d4e5f6g7h8i9j0.json
 ```
@@ -195,9 +197,9 @@ q: is an image that represents the content of the content.json
 
 | Stage       | Input Sources | Cache Key Sources | Output Files | Cache Key Output |
 | ----------- | ------------- | ----------------- | ------------ | ---------------- |
-| Disassemble | PDF file | PDF content + Docling options | `_cache/structure/{key}.json`<br>`_cache/fstructure/{key}.json` | `a1b2c3d4e5f6g7h8` |
-| Fixup       | structure cache | structure.json + fixup.py | `_cache/fstructure/{key}.json` | `b2c3d4e5f6g7h8i9` |
-| Extract     | fstructure cache | fstructure.json + extract.py | `_cache/content/{key}.json` | `c3d4e5f6g7h8i9j0` |
+| Disassemble | PDF file | PDF content + Docling options | `_cache/structure/{key}.json` (raw)<br>`_cache/structure/{key}.json` (fixed) | `a1b2c3d4e5f6g7h8` |
+| Fixup       | structure cache | structure.json + fixup.py | `_cache/structure/{key}.json` | `b2c3d4e5f6g7h8i9` |
+| Extract     | structure cache | fstructure.json + extract.py | `_cache/content/{key}.json` | `c3d4e5f6g7h8i9j0` |
 | Reassemble  | content cache | content.json + assemble.py | `_cache/qmd/{key}.qmd` | `d4e5f6g7h8i9j0k1` |
 
 ### Cache Key Flow
