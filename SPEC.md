@@ -153,11 +153,6 @@ def assemble(content: dict) -> str:
 - **p**: Fixup JSON image - represents the content of the fixup JSON (if d==p, no fixups are needed)
 - **q**: Content JSON image - represents the content of the content.json
 
-### Web Interface Interactions
-
-- **Shared scroll synchronization**: The vertical scroll bar synchronizes page index and density plots between both panes
-- **Hot reload propagation**: WebSocket events (`{"type":"reload","page":n}`) trigger updates in PDF pane and logs when fixup modules change
-- **Real-time feedback**: All processing stages show live terminal output in their respective log areas
 
 ---
 
