@@ -6,15 +6,6 @@ Removed in the PR when they are complete.
 There are other things to do of course, this is not an exhaustive list.
 
 
-## Create examples
-
-Create a simple example PDF with some issues to use for testing.
-Update the README.md to use this instead of subdirectory `x` when ready.
-
-Create a module which takes a QMD and using Quarto creates a PDF.
-We will use this for testing and example generation. 
-
-
 ## Enable web layout
 
 Enable the web layout as described in @SPEC.md and populate everything that can be based on the PDF alone with no fixup.

@@ -5,6 +5,7 @@ All contributors (humans and automation) must follow the same standards.
 ---
 
 ## 🧩 Coding Standards
+
 - Python ≥ 3.9  
 - 100-character line limit (Black + Ruff)
 - 50-line function limit
@@ -12,14 +13,17 @@ All contributors (humans and automation) must follow the same standards.
 - Use `pathlib.Path`, not raw strings  
 - Use `logging`, not `print()`  
 - No mutable globals  
+- Be DRY. Please. I'm begging you.
 
 ---
 
 ## 🧪 Testing
+
 - Framework: **pytest**  
 - Tests mirror the module structure.
 
 ### Running Tests
+
 ```bash
 pytest                    # Run all tests
 pytest -v                 # Verbose output
@@ -29,6 +33,7 @@ pytest tests/test_basic.py # Run specific test file
 ## 🔧 Development Setup
 
 ### Virtual Environment
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -36,12 +41,16 @@ pip install -e .
 ```
 
 ### Pre-commit Hooks
+
 ```bash
 pip install pre-commit
 pre-commit install
 ```
 
 This will run `ruff check`, `ruff-format`, and `mypy` on every commit.
+
+The pre-commit hooks will also validate things like validity of examples and documentation.
+
 
 ---
 
