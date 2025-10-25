@@ -53,12 +53,12 @@ jny5 view content.qmd
 │ │ │  d  |X-Density Banner | p ││││ │ X-Density Banner   | q   │ │            │
 │ │ ├─────┬─────────────────┬───┤│││ ├──────────────────────────┤ │            │
 │ │ │     │                 │   ││││ │ [ JSON | QMD | HTML ]     │ │            │
-│ │ │ Y-  │   Annotated     │An-││││ │ Reassembled Output |  Y  │ │            │
-│ │ │ Den │     PDF +       │not││││ │                    |  d  │ │            │
-│ │ │ sity│   Toggleable    │at-││││ │                    |  e  │ │            │
-│ │ │     │   Bounding      │ion││││ │                    |  n  │ │            │
-│ │ │     │     Boxes       │s  ││││ │                    |  s  │ │            │
-│ │ │     │                 │   ││││ │                    |     │ │            │
+│ │ │ Y-  │   Annotated     │An-││││ │ Reassembled Content  │ Y │ │            │
+│ │ │ Den │     PDF +       │not││││ │                    │Den│ │            │
+│ │ │ sity│   Toggleable    │at-││││ │                    │sity│ │            │
+│ │ │     │   Bounding      │ion││││ │                    │    │ │            │
+│ │ │     │     Boxes       │s  ││││ │                    │    │ │            │
+│ │ │     │                 │   ││││ │                    │    │ │            │
 │ │ ├─────┴─────────────────┴───┤│││ ├──────────────────────────┤ │            │
 │ │ │    Disassembly Log        ││││ │    Reconstruction Log    │ │            │
 │ │ │    (Terminal Output)      ││││ │    (Terminal Output)     │ │            │
