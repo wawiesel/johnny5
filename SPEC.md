@@ -153,6 +153,10 @@ def assemble(content: dict) -> str:
 - **p**: Fixup JSON image - represents the content of the fixup JSON (if d==p, no fixups are needed)
 - **q**: Content JSON image - represents the content of the content.json
 
+### Web Interface Requirements
+
+- **Synchronized scrolling**: The vertical scroll bar must scroll both panes simultaneously to maintain alignment between disassembly and reconstruction views
+
 
 ---
 
