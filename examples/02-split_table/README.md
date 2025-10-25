@@ -14,8 +14,8 @@ This example tests Johnny5's table parsing capabilities, particularly:
 To regenerate the PDF from the source QMD file:
 
 ```bash
-jny5 qmd 02-split_table.qmd
-jny5 pdf 02-split_table.qmd
+jny5 check 02-split_table.qmd
+jny5 to-pdf 02-split_table.qmd
 ```
 
 This will create `02-split_table.pdf` using Quarto to render the QMD source.

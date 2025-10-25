@@ -15,8 +15,8 @@ This example tests Johnny5's basic parsing capabilities for simple documents:
 To regenerate the PDF from the source QMD file:
 
 ```bash
-jny5 qmd 01-one_page.qmd
-jny5 pdf 01-one_page.qmd
+jny5 check 01-one_page.qmd
+jny5 to-pdf 01-one_page.qmd
 ```
 
 This will create `01-one_page.pdf` using Quarto to render the QMD source.
