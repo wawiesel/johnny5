@@ -2,6 +2,8 @@
 
 **Johnny5** is a modular Python package for understanding and reconstructing complex documents.
 
+> **⚠️ Alpha Software**: This is early-stage software. Expect breaking changes and rough edges.
+
 1. **Disassembles** PDFs into Docling's lossless JSON representation.
 2. Applies a user-defined, hot-reloadable **fixup** layer for structural corrections.
 3. **Extracts** data hidden in structure to a content-only JSON of the user's preference.
@@ -23,12 +25,12 @@ pip install -e .
 ## 🧰 Quick Start
 
 ```bash
-jny5 view examples/x/sample.pdf
+jny5 view examples/sample.pdf
 # starts web server and renders left pane deconstruction only
 ```
 
 ```bash
-cd examples/x
+cd examples/
 jny5 view sample.pdf --fixup fixup.py --extract extract.py --reconstruct reconstruct.py
 # renders full reconstruction pipeline
 ```
