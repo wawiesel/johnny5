@@ -81,34 +81,6 @@ Examples:
 
 **Note**: When fixup is null/empty, structure and fstructure cache keys are identical, storing the same file.
 
-#### Updated CLI Commands
-
-```
-jny5 disassemble <pdf> --fixup <fixup.py>
-# Outputs cache key: a1b2c3d4e5f6g7h8
-# Creates: ~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json (raw)
-#          ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
-```
-
-```
-jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
-# Uses: ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json
-# Outputs cache key: c3d4e5f6g7h8i9j0
-# Creates: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
-```
-
-```
-jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
-# Uses: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
-# Outputs cache key: d4e5f6g7h8i9j0k1
-# Creates: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
-```
-
-```
-jny5 view --from-cache d4e5f6g7h8i9j0k1
-# Uses: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
-# Views as HTML
-```
 
 #### Cache Key Emission
 
