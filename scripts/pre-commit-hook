@@ -38,10 +38,16 @@ for readme_file in $readme_files; do
         if [ -n "$command" ]; then
             echo "    🔧 Running: $command"
             
-            # Skip commands that modify files during pre-commit to avoid conflicts
+            # Handle file-modifying commands specially
             if [[ "$command" == *"to-pdf"* ]]; then
-                echo "    ⏭️  Skipping file-modifying command: $command"
-                echo "    ✅ Command would succeed (skipped to avoid file conflicts)"
+                echo "    🔧 Running file-modifying command: $command"
+                # Run the command but don't fail if it modifies files
+                if (cd "$example_dir" && source ../../venv/bin/activate && export PATH="../../venv/bin:$PATH" && export PYTHONPATH="../../src:$PYTHONPATH" && eval "$command" >/dev/null 2>&1); then
+                    echo "    ✅ Command succeeded: $command"
+                else
+                    echo "    ❌ Command failed: $command"
+                    validation_failed=true
+                fi
                 continue
             fi
             
