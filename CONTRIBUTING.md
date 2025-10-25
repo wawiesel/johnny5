@@ -53,7 +53,9 @@ pre-commit install
 
 This will run `ruff check`, `ruff-format`, and `mypy` on every commit.
 
-The pre-commit hooks will also validate things like validity of examples and documentation.
+The pre-commit hooks will also validate example README files by running the commands they contain to ensure they work correctly.
+
+**Note**: Some commands may modify files (like generating PDFs), but the hook handles this appropriately to avoid git conflicts.
 
 
 ---
