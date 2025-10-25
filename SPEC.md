@@ -50,8 +50,8 @@ Johnny5 uses a sophisticated content-based caching system where inputs are check
 
 #### Content Types
 
-| Type | Description | File Name | Purpose |
-|------|-------------|-----------|---------|
+| Type | Description | Shortcut Reference | Purpose |
+|------|-------------|-------------------|---------|
 | **Structure** | Docling lossless JSON structure | `structure.json` | Raw document structure from Docling |
 | **Fixed Structure** | Corrected structure after fixup | `fstructure.json` | Structure with layout model corrections applied |
 | **Content** | Extracted pure content description | `content.json` | Simplified content representation |
