@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # Johnny5 — Document Decomposition and Recomposing Environment
 
 Johnny5 is a Python package that:
