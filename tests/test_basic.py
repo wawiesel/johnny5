@@ -23,7 +23,6 @@ def test_package_imports():
 def test_cli_group():
     """Test that CLI group is properly configured"""
     from johnny5.cli import main as cli_main
-
     assert cli_main.name == "main"
     assert len(cli_main.commands) == 2
     assert "disassemble" in cli_main.commands
