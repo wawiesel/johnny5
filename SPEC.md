@@ -19,30 +19,29 @@ Johnny5 provides a reproducible, pluggable environment for document disassembly 
 ### CLI Commands
 
 ```bash
-jny5 disassemble <pdf> --fixup <fixup.py>
+jny5 disassemble <pdf> --fixup <fixup.py> [docling-options]
 # Outputs cache key: a1b2c3d4e5f6g7h8
 # Creates: ~/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json (raw)
 #          ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json (fixed)
 ```
 
 ```bash
-jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
+jny5 extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
 # Uses: ~/.jny5/cache/structure/b2c3d4e5f6g7h8i9.json
 # Outputs cache key: c3d4e5f6g7h8i9j0
 # Creates: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
 ```
 
 ```bash
-jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
+jny5 reconstruct <reconstruct.py> --from-cache c3d4e5f6g7h8i9j0
 # Uses: ~/.jny5/cache/content/c3d4e5f6g7h8i9j0.json
 # Outputs cache key: d4e5f6g7h8i9j0k1
 # Creates: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
 ```
 
 ```bash
-jny5 view --from-cache d4e5f6g7h8i9j0k1
-# Uses: ~/.jny5/cache/qmd/d4e5f6g7h8i9j0k1.qmd
-# Views as HTML
+jny5 view <pdf> [--fixup <fixup.py> --extract <extract.py> --reconstruct <reconstruct.py> docling-options]
+# Open the webviewer
 ```
 
 ### Content-Based Caching System
@@ -67,7 +66,7 @@ Each stage generates a cache key by checksumming all relevant inputs. The cache 
 | **Disassemble** | PDF content + Docling options               | `a1b2c3d4e5f6g7h8` |
 | **Fixup**       | structure.json content + fixup.py content   | `b2c3d4e5f6g7h8i9` |
 | **Extract**     | fstructure.json content + extract.py content| `c3d4e5f6g7h8i9j0` |
-| **Reassemble**  | content.json content + assemble.py content  | `d4e5f6g7h8i9j0k1` |
+| **reconstruct**  | content.json content + assemble.py content  | `d4e5f6g7h8i9j0k1` |
 
 #### Cache File Naming
 
@@ -90,7 +89,7 @@ Every command outputs its generated cache key to stdout for chaining:
 # Example workflow
 STRUCTURE_KEY=$(jny5 disassemble document.pdf --fixup fixup.py)
 FSTRUCTURE_KEY=$(jny5 extract --extract extract.py --from-cache $STRUCTURE_KEY)
-CONTENT_KEY=$(jny5 reassemble --assemble assemble.py --from-cache $FSTRUCTURE_KEY)
+CONTENT_KEY=$(jny5 reconstruct --assemble assemble.py --from-cache $FSTRUCTURE_KEY)
 jny5 view --from-cache $CONTENT_KEY
 ```
 
@@ -115,9 +114,9 @@ def fixup(structure: dict) -> dict:
 def extract(fstructure: dict) -> dict:
     """Return simplified content JSON."""
 
-# assm.py
-def assemble(content: dict) -> str:
-    """Return reassembled text (QMD)."""
+# reconstruct.py
+def reconstruct(content: dict) -> str:
+    """Return reconstructed text (QMD)."""
 ```
 
 ### Web Application
@@ -132,7 +131,7 @@ def assemble(content: dict) -> str:
 │ │ │  d  |     X-Density   | p │ │ # │ │       X-Density    | q   │ │   │
 │ │ ├─────┬─────────────────┬───┤ │ # │ ├──────────────────────────┤ │   │
 │ │ │     │                 │   │ │ # │ │                    |     │ │   │
-│ │ │ Y-  │   Annotated     │An-│ │ # │ │ Reassembled        |  Y- │ │   │
+│ │ │ Y-  │   Annotated     │An-│ │ # │ │ Reconstructd       |  Y- │ │   │
 │ │ │ Den │     PDF +       │not│ │ # │ │ Content            | Den │ │   │
 │ │ │ sity│   Toggleable    │at-│ │ # │ │ [JSON|QMD|HTML]    │ sity│ │   │
 │ │ │     │   Bounding      │ion│ │ # │ │                    │     │ │   │
@@ -156,44 +155,5 @@ def assemble(content: dict) -> str:
 ### Web Interface Requirements
 
 - **Synchronized scrolling**: The vertical scroll bar must scroll both panes simultaneously to maintain alignment between disassembly and reconstruction views
-
-
----
-
-
-
----
-
-## 3. Error Handling
-
-All stages must raise a subclass of `Johnny5Error` with structured error information:
-
-```python
-class Johnny5Error(Exception):
-    def __init__(self, code: str, message: str, detail: dict = None):
-        self.code = code
-        self.message = message
-        self.detail = detail or {}
-```
-
-This ensures consistent error reporting for both CLI and web interfaces.
-
----
-
-## 4. Testing and Automation
-
-### Golden Fixtures
-
-Minimal test fixtures for pipeline validation:
-- `fixtures/sample.pdf` - Test input document
-- `fixtures/expected_structure.json` - Expected Docling output
-- `fixtures/expected_content.json` - Expected extraction output
-- `fixtures/expected_content.qmd` - Expected reassembly output
-
-### CI Requirements
-
-All commands must be callable non-interactively for CI testing:
-- Each stage must exit 0 if successful
-- Artifact paths must be written to stdout
-- No interactive prompts or user input required
-- Deterministic output for given inputs
+- **Responsive**: The web UI must be responsive to movements.
+- **Beautiful**: The PDF render should be crisp and easy to read.
