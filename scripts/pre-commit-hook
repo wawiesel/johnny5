@@ -44,7 +44,7 @@ for readme_file in $readme_files; do
             
             # Change to the example directory and run the command
             # Use the virtual environment's Python to ensure jny5 is available
-            if ! (cd "$example_dir" && source ../../venv/bin/activate && eval "$modified_command"; exit_code=$?; echo "    Exit code: $exit_code"; exit $exit_code); then
+            if ! (cd "$example_dir" && source ../../venv/bin/activate && export PATH="../../venv/bin:$PATH" && export PYTHONPATH="../../src:$PYTHONPATH" && eval "$modified_command"; exit_code=$?; echo "    Exit code: $exit_code"; exit $exit_code); then
                 echo "    ❌ Command failed: $command"
                 validation_failed=true
             else
