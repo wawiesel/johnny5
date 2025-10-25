@@ -5,7 +5,7 @@
 It:
 1. **Disassembles** PDFs into Docling's lossless JSON representation.
 2. Applies a user-defined, hot-reloadable **fixup** layer for structural corrections.
-3. **Reassembles** corrected data into rich formats such as QMD and HTML.
+3. **Reconstructs** corrected data into rich formats such as QMD and HTML.
 4. Serves an interactive FastAPI web interface (powered by PDF.js) to visualize and debug the process.
 
 ---
@@ -28,14 +28,13 @@ Requirements:
 ## 🧰 Quick Start
 
 ```bash
-# Disassemble a document
-johnny5 disassemble examples/sample.pdf
+# Open the web viewer with a PDF
+jny5 view examples/sample.pdf
 
-# Reassemble corrected output
-johnny5 reassemble _cache/lossless_fixed.json
-
-# Start the web viewer
-johnny5 web
+# Or run the full pipeline manually
+jny5 disassemble examples/sample.pdf --fixup fixup.py
+jny5 extract extract.py --from-cache <cache-key>
+jny5 reconstruct reconstruct.py --from-cache <cache-key>
 ```
 
 Visit `http://localhost:8000` to explore the PDF structure visually.
@@ -47,20 +46,8 @@ Visit `http://localhost:8000` to explore the PDF structure visually.
 * Accurate PDF → JSON conversion using **Docling**
 * Intelligent region & margin detection
 * Hot-reloading fixup scripts
-* QMD/HTML reassembly
+* QMD/HTML reconstruction
 * Web-based visual comparison of source and reconstructed layouts
-
----
-
-## 📦 Architecture Overview
-
-| Component         | Role                                          |
-| ----------------- | --------------------------------------------- |
-| `disassembler.py` | Converts PDF → lossless JSON → corrected JSON |
-| `reassembler.py`  | Converts corrected JSON → QMD/HTML            |
-| `server.py`       | FastAPI + WebSocket app for visualization     |
-| `watcher.py`      | Monitors fixup files and triggers reloads     |
-| `utils/`          | Independent helpers (density, margins, etc.)  |
 
 ---
 
