@@ -59,8 +59,17 @@ PDF (input)
 ### 2.4 server.py
 - FastAPI (async) with:
   - `GET /` → Johnny5 Web Interface with split-pane layout:
-    - **Left Pane (Disassembly)**: Y-Density Plot, Annotated PDF + Labels, X-Density Plot, Disassembly Log
-    - **Right Pane (Reconstruction)**: QMD/HTML Tabs, Reassembled Output, Reconstruction Log
+    - **Left Pane (Disassembly)**: 
+      - X-Density banner above PDF
+      - Y-Density banner to left of PDF
+      - Annotated PDF with toggleable bounding boxes in center
+      - Right gutter with annotations connected to bounding boxes
+      - Terminal-like disassembly log at bottom
+    - **Right Pane (Reconstruction)**:
+      - X-Density banner above content
+      - Y-Density banner to right of content
+      - QMD/HTML Tabs with reassembled output
+      - Terminal-like reconstruction log at bottom
     - **Shared vertical scroll bar** for synchronized scrolling
   - `GET /doc` → metadata (page count, sizes).
   - `GET /pages/{n}/image?dpi=...` → raster via PyMuPDF (no quality loss controls in Matplotlib).
