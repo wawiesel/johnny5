@@ -40,6 +40,93 @@ jny5 view _cache/content.qmd
 # views qmd as HTML
 ```
 
+### Content-Based Caching System
+
+Johnny5 uses a sophisticated content-based caching system where inputs are checksummed to generate cache keys, and outputs are stored with filenames equal to those cache keys.
+
+#### Cache Key Generation
+
+Each stage generates a cache key by checksumming all relevant inputs:
+
+```python
+import hashlib
+import json
+
+def generate_cache_key(inputs: dict) -> str:
+    """Generate SHA-256 cache key from input content."""
+    # Sort keys for deterministic hashing
+    content = json.dumps(inputs, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(content.encode()).hexdigest()[:16]  # 16-char key
+```
+
+#### Cache Key Sources by Stage
+
+| Stage | Cache Key Sources | Example Key |
+|-------|------------------|-------------|
+| **Disassemble** | PDF content + Docling options | `a1b2c3d4e5f6g7h8` |
+| **Fixup** | structure.json content + fixup.py content | `b2c3d4e5f6g7h8i9` |
+| **Extract** | fstructure.json content + extract.py content | `c3d4e5f6g7h8i9j0` |
+| **Reassemble** | content.json content + assemble.py content | `d4e5f6g7h8i9j0k1` |
+
+#### Cache File Naming
+
+All cache files use the format: `_cache/{stage}_{cache_key}.{ext}`
+
+Examples:
+- `_cache/structure_a1b2c3d4e5f6g7h8.json`
+- `_cache/fstructure_b2c3d4e5f6g7h8i9.json`
+- `_cache/content_c3d4e5f6g7h8i9j0.json`
+- `_cache/qmd_d4e5f6g7h8i9j0k1.qmd`
+
+#### Updated CLI Commands
+
+```
+jny5 disassemble <pdf> --fixup <fixup.py>
+# Outputs cache key: a1b2c3d4e5f6g7h8
+# Creates: _cache/structure_a1b2c3d4e5f6g7h8.json
+#          _cache/fstructure_b2c3d4e5f6g7h8i9.json
+```
+
+```
+jny5 extract --extract <extract.py> --from-cache b2c3d4e5f6g7h8i9
+# Uses: _cache/fstructure_b2c3d4e5f6g7h8i9.json
+# Outputs cache key: c3d4e5f6g7h8i9j0
+# Creates: _cache/content_c3d4e5f6g7h8i9j0.json
+```
+
+```
+jny5 reassemble --assemble <assm.py> --from-cache c3d4e5f6g7h8i9j0
+# Uses: _cache/content_c3d4e5f6g7h8i9j0.json
+# Outputs cache key: d4e5f6g7h8i9j0k1
+# Creates: _cache/qmd_d4e5f6g7h8i9j0k1.qmd
+```
+
+```
+jny5 view --from-cache d4e5f6g7h8i9j0k1
+# Uses: _cache/qmd_d4e5f6g7h8i9j0k1.qmd
+# Views as HTML
+```
+
+#### Cache Key Emission
+
+Every command outputs its generated cache key to stdout for chaining:
+
+```bash
+# Example workflow
+STRUCTURE_KEY=$(jny5 disassemble document.pdf --fixup fixup.py)
+FSTRUCTURE_KEY=$(jny5 extract --extract extract.py --from-cache $STRUCTURE_KEY)
+CONTENT_KEY=$(jny5 reassemble --assemble assemble.py --from-cache $FSTRUCTURE_KEY)
+jny5 view --from-cache $CONTENT_KEY
+```
+
+#### Cache Benefits
+
+- **Deterministic**: Same inputs always produce same cache key
+- **Efficient**: Skip processing when cache exists
+- **Reliable**: No manual file manipulation required
+- **Traceable**: Cache keys provide audit trail
+- **Parallel-safe**: Multiple processes can use same cache
+
 ### Python Module Callable Contracts
 
 Each Python script must export a single callable with the following signatures:
@@ -101,12 +188,18 @@ q: is an image that represents the content of the content.json
 
 ## 3. Data Artifacts
 
-| Stage       | Input           | Output          | File                     |
-| ----------- | --------------- | --------------- | ------------------------ |
-| Disassemble | PDF             | structure.json  | `_cache/structure.json`  |
-| Fixup       | structure.json  | fstructure.json | `_cache/fstructure.json` |
-| Extract     | fstructure.json | content.json    | `_cache/content.json`    |
-| Reassemble  | content.json    | content.qmd     | `_cache/content.qmd`     |
+| Stage       | Input Sources | Cache Key Sources | Output Files | Cache Key Output |
+| ----------- | ------------- | ----------------- | ------------ | ---------------- |
+| Disassemble | PDF file | PDF content + Docling options | `_cache/structure_{key}.json`<br>`_cache/fstructure_{key}.json` | `a1b2c3d4e5f6g7h8` |
+| Fixup       | structure cache | structure.json + fixup.py | `_cache/fstructure_{key}.json` | `b2c3d4e5f6g7h8i9` |
+| Extract     | fstructure cache | fstructure.json + extract.py | `_cache/content_{key}.json` | `c3d4e5f6g7h8i9j0` |
+| Reassemble  | content cache | content.json + assemble.py | `_cache/qmd_{key}.qmd` | `d4e5f6g7h8i9j0k1` |
+
+### Cache Key Flow
+
+```
+PDF → [a1b2c3d4e5f6g7h8] → structure.json + fixup.py → [b2c3d4e5f6g7h8i9] → fstructure.json + extract.py → [c3d4e5f6g7h8i9j0] → content.json + assemble.py → [d4e5f6g7h8i9j0k1] → qmd
+```
 
 ---
 
