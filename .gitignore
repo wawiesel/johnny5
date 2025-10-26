@@ -168,3 +168,5 @@ _cache/
 *.qmd
 *.html
 src/johnny5.egg-info/
+*.DS_Store
+**/.DS_Store
