@@ -13,12 +13,16 @@
         <div class="app-container">
             <!-- Image Indicators -->
             <div id="indicator-i" class="box">i</div>
-            <div id="x-density" class="box dark-text">X-Density</div>
+            <div id="x-density" class="box dark-text">
+                <canvas id="x-density-chart"></canvas>
+            </div>
             <div id="indicator-d" class="box">d</div>
             <div id="indicator-e" class="box">e</div>
             
             <!-- Left Side Content -->
-            <div id="y-density" class="box">Y-Density</div>
+            <div id="y-density" class="box">
+                <canvas id="y-density-chart"></canvas>
+            </div>
             
             <div id="pdf-viewer" class="box dark-text">
                 <div class="pdf-controls-overlay">
@@ -95,19 +99,31 @@
             
             <!-- Toggles -->
             <div id="toggles" class="box">
-                <div class="not-implemented">Label Toggles</div>
+                <div class="label-toggles-container">
+                    <div class="toggle-controls">
+                        <button id="select-all-labels" class="toggle-btn">Select All</button>
+                        <button id="deselect-all-labels" class="toggle-btn">Deselect All</button>
+                    </div>
+                    <div id="label-checkboxes" class="label-checkboxes">
+                        <!-- Dynamically generated checkboxes will appear here -->
+                    </div>
+                </div>
             </div>
 
             <!-- Center Divider -->
             <div class="center-divider"></div>
 
             <!-- Right Side Content -->
-            <div id="x-density-right" class="box dark-text">X-Density</div>
+            <div id="x-density-right" class="box dark-text">
+                <canvas id="x-density-right-chart"></canvas>
+            </div>
             <div id="indicator-r" class="box">r</div>
             <div id="reconstructed" class="box dark-text">
                 <div class="not-implemented">Reconstructed Content</div>
             </div>
-            <div id="y-density-right" class="box dark-text">Y-Density</div>
+            <div id="y-density-right" class="box dark-text">
+                <canvas id="y-density-right-chart"></canvas>
+            </div>
             <div id="options-right" class="box">
                 <div class="not-implemented">Reconstruct Options</div>
             </div>
@@ -119,6 +135,7 @@
         </div>
     </div>
     
+    <script src="/static/density-charts.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

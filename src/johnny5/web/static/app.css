@@ -70,13 +70,48 @@ body {
 #x-density {
     grid-row: 1 / 2; grid-column: 2 / 3;
     background-color: #9acd32;
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 #y-density {
     grid-row: 2 / 3; grid-column: 1 / 2;
     background-color: #2e8b57;
     writing-mode: vertical-rl;
-    transform: rotate(180deg);
+    position: relative;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    /* Hide scrollbar but keep functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Hide scrollbar for WebKit browsers (Chrome, Safari) */
+#y-density::-webkit-scrollbar {
+    display: none;
+}
+
+/* Density Chart Canvas */
+#x-density-chart,
+#x-density-right-chart {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#y-density-chart,
+#y-density-right-chart {
+    width: 100%;
+    display: block;
+    flex-shrink: 0;
+}
+
+#y-density-chart {
+    /* Will be set dynamically to match PDF height */
 }
 
 #pdf-viewer {
@@ -212,6 +247,7 @@ body {
 #x-density-right {
     grid-row: 1 / 2; grid-column: 6 / 7;
     background-color: #ffd700;
+    position: relative;
 }
 
 #reconstructed {
@@ -226,6 +262,7 @@ body {
     background-color: #f0e68c;
     writing-mode: vertical-rl;
     transform: rotate(180deg);
+    position: relative;
 }
 
 /* --- BLUE HUES - Annotations and Toggles --- */
@@ -242,6 +279,74 @@ body {
     background-color: #007fff;
     padding: 0.5rem;
     overflow-y: auto;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+.label-toggles-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.toggle-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.label-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+}
+
+.label-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.label-checkbox-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.label-checkbox-item label {
+    cursor: pointer;
+    color: white;
+    font-size: 0.8rem;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.label-color-swatch {
+    width: 12px;
+    height: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    display: inline-block;
 }
 
 /* --- PURPLE HUES - Options --- */
@@ -479,7 +584,7 @@ body {
 /* Annotation Overlays */
 .annotation-overlay {
     position: absolute;
-    border: 2px solid #ff6b6b;
+    border: 1px solid #ff6b6b;
     background: rgba(255, 107, 107, 0.1);
     pointer-events: auto;
     cursor: pointer;
@@ -487,13 +592,27 @@ body {
 }
 
 .annotation-overlay:hover {
-    background: rgba(255, 107, 107, 0.2);
+    background: rgba(255, 107, 107, 0.3);
     border-color: #ff5252;
+    border-width: 1.5px;
+    transform: scale(1.02);
+    z-index: 1000;
 }
 
 .annotation-overlay.selected {
     border-color: #2196F3;
-    background: rgba(33, 150, 243, 0.1);
+    border-width: 1.5px;
+    background: rgba(33, 150, 243, 0.2);
+    transform: scale(1.02);
+    z-index: 1000;
+}
+
+.page-overlay-container {
+    pointer-events: none;
+}
+
+.page-overlay-container .annotation-overlay {
+    pointer-events: auto;
 }
 
 /* Connection lines from PDF to annotations */

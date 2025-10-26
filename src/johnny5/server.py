@@ -8,6 +8,7 @@ def run_web(pdf, port, fixup):
     import uvicorn
     import json
     import logging
+    import os
     from pathlib import Path
     import asyncio
     from typing import Dict
@@ -61,8 +62,9 @@ def run_web(pdf, port, fixup):
     async def get_structure(page: int):
         """Get structure data for a specific page"""
         try:
-            # Load structure from cache
-            cache_dir = Path("_cache")
+            # Load structure from cache using JNY5_HOME
+            jny5_home = Path(os.environ.get("JNY5_HOME", Path.home() / ".jny5"))
+            cache_dir = jny5_home / "cache" / "structure"
             structure_file = cache_dir / "lossless_fixed.json"
 
             if not structure_file.exists():
@@ -93,8 +95,9 @@ def run_web(pdf, port, fixup):
     async def get_density(page: int):
         """Get density data for visualization"""
         try:
-            # Load structure from cache
-            cache_dir = Path("_cache")
+            # Load structure from cache using JNY5_HOME
+            jny5_home = Path(os.environ.get("JNY5_HOME", Path.home() / ".jny5"))
+            cache_dir = jny5_home / "cache" / "structure"
             structure_file = cache_dir / "lossless_fixed.json"
 
             if not structure_file.exists():

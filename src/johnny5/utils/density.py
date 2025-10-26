@@ -6,7 +6,7 @@ of page elements for context-aware fixup processing.
 
 import logging
 import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,10 @@ def calculate_density(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def compute_density_arrays(
-    elements: List[Dict[str, Any]], page_width: float, page_height: float, resolution: int = None
+    elements: List[Dict[str, Any]],
+    page_width: float,
+    page_height: float,
+    resolution: Optional[int] = None,
 ) -> Tuple[List[float], List[float]]:
     """
     Compute density arrays for visualization.

@@ -11,6 +11,14 @@ class Johnny5Viewer {
         this.websocket = null;
         this.structureData = null;
         this.densityData = null;
+        this.allStructureData = {}; // Store structure data for all pages
+        this.allDensityData = {}; // Store density data for all pages
+        this.activeLabels = new Set(); // Currently enabled labels
+        this.allLabels = []; // All available labels from document
+        this.labelColors = {}; // Color scheme for each label type
+        
+        // Initialize density charts module
+        this.densityCharts = new DensityCharts(this);
         
         // Redirect console output to log window
         this.redirectConsoleToLog();
@@ -105,10 +113,17 @@ class Johnny5Viewer {
         // Page count overlay updates on scroll
         document.getElementById('pdf-scroller').addEventListener('scroll', () => this.updateCurrentPage());
         
+        // Sync Y-density scroll with PDF scroller
+        this.densityCharts.syncYDensityScroll();
+        
         // Trackpad/wheel zoom support
         this.setupTrackpadSupport();
         
         // Scroll synchronization (to be implemented)
+        
+        // Label toggle controls
+        document.getElementById('select-all-labels').addEventListener('click', () => this.selectAllLabels());
+        document.getElementById('deselect-all-labels').addEventListener('click', () => this.deselectAllLabels());
     }
 
     connectWebSocket() {
@@ -201,29 +216,15 @@ class Johnny5Viewer {
     }
     
     async loadPageData() {
-        try {
-            // Load structure data
-            const structureResponse = await fetch(`/api/structure/${this.currentPage}`);
-            if (structureResponse.ok) {
-                this.structureData = await structureResponse.json();
-                this.renderAnnotations();
-            }
-            
-            // Load density data
-            const densityResponse = await fetch(`/api/density/${this.currentPage}`);
-            if (densityResponse.ok) {
-                this.densityData = await densityResponse.json();
-                this.renderDensityCharts();
-            }
-            
-        } catch (error) {
-            console.error('Failed to load page data:', error);
-            this.addLogEntry('left', `Failed to load page data: ${error.message}`, 'error');
-        }
+        // This method is deprecated - using loadAllPageData() instead
+        // Keeping for compatibility but should not be used
+        console.log('loadPageData() called but using loadAllPageData() instead');
+        await this.loadAllPageData();
     }
     
     async loadAllPageData() {
         try {
+            let loadedCount = 0;
             // Load structure and density data for all pages
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
                 try {
@@ -232,16 +233,35 @@ class Johnny5Viewer {
                     
                     if (structureResponse.ok) {
                         const structureData = await structureResponse.json();
-                        this.addLogEntry('left', `Loaded structure data for page ${pageNum}`);
+                        this.allStructureData[pageNum] = structureData;
+                        loadedCount++;
                     }
                     
                     if (densityResponse.ok) {
                         const densityData = await densityResponse.json();
-                        this.addLogEntry('left', `Loaded density data for page ${pageNum}`);
+                        this.allDensityData[pageNum] = densityData;
                     }
                 } catch (error) {
-                    this.addLogEntry('left', `Failed to load data for page ${pageNum}: ${error.message}`, 'error');
+                    console.log(`Failed to load data for page ${pageNum}: ${error.message}`);
                 }
+            }
+            
+            if (loadedCount > 0) {
+                this.addLogEntry('left', `Loaded structure data for ${loadedCount} pages`);
+                
+                // After loading all data, extract unique labels and build toggle UI
+                this.extractUniqueLabels();
+                this.renderLabelToggles();
+                
+                // Render annotations for all pages
+                this.renderAllAnnotations();
+                
+                // Render static Y-axis charts (full document)
+                this.densityCharts.renderStaticCharts();
+                // Render dynamic X-axis charts (for current page)
+                this.densityCharts.updateDynamicCharts();
+            } else {
+                this.addLogEntry('left', 'No structure data available. Run disassemble command first.', 'warning');
             }
         } catch (error) {
             this.addLogEntry('left', `Failed to load page data: ${error.message}`, 'error');
@@ -362,78 +382,20 @@ class Johnny5Viewer {
         connectionLines.forEach(line => line.remove());
     }
 
-    selectAnnotation(index) {
+    selectAnnotation(index, pageNum = null) {
         // Remove previous selection
         document.querySelectorAll('.annotation-overlay.selected, .annotation-item.selected, .connection-line.selected').forEach(el => {
             el.classList.remove('selected');
         });
         
         // Add selection to clicked annotation and its connection line
-        document.querySelectorAll(`[data-index="${index}"]`).forEach(el => {
+        const selector = pageNum ? `[data-index="${index}"][data-page="${pageNum}"]` : `[data-index="${index}"]`;
+        document.querySelectorAll(selector).forEach(el => {
             el.classList.add('selected');
         });
     }
 
-    renderDensityCharts() {
-        if (!this.densityData) return;
-        
-        this.renderXDensityChart();
-        this.renderYDensityChart();
-    }
-
-    renderXDensityChart() {
-        const canvas = document.getElementById('x-density-chart');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        
-        // Set canvas size
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
-        
-        const data = this.densityData.x;
-        if (!data || data.length === 0) return;
-        
-        const maxValue = Math.max(...data);
-        const barWidth = canvas.width / data.length;
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#4CAF50';
-        
-        data.forEach((value, index) => {
-            const barHeight = (value / maxValue) * canvas.height;
-            const x = index * barWidth;
-            const y = canvas.height - barHeight;
-            
-            ctx.fillRect(x, y, barWidth, barHeight);
-        });
-    }
-
-    renderYDensityChart() {
-        const canvas = document.getElementById('y-density-chart');
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        
-        // Set canvas size
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
-        
-        const data = this.densityData.y;
-        if (!data || data.length === 0) return;
-        
-        const maxValue = Math.max(...data);
-        const barHeight = canvas.height / data.length;
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#2196F3';
-        
-        data.forEach((value, index) => {
-            const barWidth = (value / maxValue) * canvas.width;
-            const x = canvas.width - barWidth;
-            const y = index * barHeight;
-            
-            ctx.fillRect(x, y, barWidth, barHeight);
-        });
-    }
+    // Density chart rendering moved to DensityCharts module
 
     async previousPage() {
         if (this.currentPage > 1) {
@@ -740,11 +702,11 @@ class Johnny5Viewer {
             
             this.addLogEntry('left', `PDF loaded successfully. Pages: ${this.totalPages}`);
             
-            // Render the first page
-            await this.renderPage(this.currentPage);
+            // Render all pages
+            await this.renderAllPages();
             
             // Load structure and density data for the new PDF
-            await this.loadPageData();
+            await this.loadAllPageData();
             
             // Clean up object URL
             URL.revokeObjectURL(fileUrl);
@@ -781,8 +743,13 @@ class Johnny5Viewer {
             }
         });
 
-        this.currentPage = closestPage;
-        overlay.textContent = `${this.currentPage} / ${this.totalPages}`;
+        // Only update if page changed
+        if (this.currentPage !== closestPage) {
+            this.currentPage = closestPage;
+            overlay.textContent = `${this.currentPage} / ${this.totalPages}`;
+            // Update dynamic X-axis charts for the new page
+            this.densityCharts.updateDynamicCharts();
+        }
     }
 
     toggleOptions() {
@@ -818,6 +785,239 @@ class Johnny5Viewer {
             console.error('Failed to copy log:', err);
         });
     }
+    
+    // New methods for density and labels
+    
+    extractUniqueLabels() {
+        const labelSet = new Set();
+        
+        // Scan all pages for element types
+        for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+            if (this.allStructureData[pageNum] && this.allStructureData[pageNum].page) {
+                const page = this.allStructureData[pageNum].page;
+                if (page.elements) {
+                    page.elements.forEach(element => {
+                        if (element.type) {
+                            labelSet.add(element.type);
+                        }
+                    });
+                }
+            }
+        }
+        
+        this.allLabels = Array.from(labelSet).sort();
+        
+        // Default: all labels active
+        this.activeLabels = new Set(this.allLabels);
+    }
+    
+    syncYDensityScroll() {
+        const pdfScroller = document.getElementById('pdf-scroller');
+        const yDensity = document.getElementById('y-density');
+        
+        if (!pdfScroller || !yDensity) return;
+        
+        let isSyncing = false;
+        
+        // Sync y-density scroll with pdf-scroller (one-way: pdf -> y-density)
+        pdfScroller.addEventListener('scroll', () => {
+            if (isSyncing) return;
+            
+            requestAnimationFrame(() => {
+                const pdfMaxScroll = pdfScroller.scrollHeight - pdfScroller.clientHeight;
+                const scrollPercent = pdfMaxScroll > 0 ? pdfScroller.scrollTop / pdfMaxScroll : 0;
+                
+                const yDensityMaxScroll = yDensity.scrollHeight - yDensity.clientHeight;
+                if (yDensityMaxScroll > 0) {
+                    isSyncing = true;
+                    yDensity.scrollTop = scrollPercent * yDensityMaxScroll;
+                    requestAnimationFrame(() => {
+                        isSyncing = false;
+                    });
+                }
+            });
+        });
+    }
+    
+    renderLabelToggles() {
+        const container = document.getElementById('label-checkboxes');
+        container.innerHTML = '';
+        
+        // Define colors for each label type
+        const colorScheme = {
+            'text': 'rgba(33, 150, 243, 0.3)',
+            'title': 'rgba(76, 175, 80, 0.3)',
+            'section_header': 'rgba(255, 152, 0, 0.3)',
+            'table': 'rgba(244, 67, 54, 0.3)',
+            'figure': 'rgba(156, 39, 176, 0.3)',
+            'list_item': 'rgba(0, 188, 212, 0.3)',
+            'default': 'rgba(158, 158, 158, 0.3)'
+        };
+        
+        this.allLabels.forEach(label => {
+            const item = document.createElement('div');
+            item.className = 'label-checkbox-item';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `label-${label}`;
+            checkbox.checked = this.activeLabels.has(label);
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    this.activeLabels.add(label);
+                } else {
+                    this.activeLabels.delete(label);
+                }
+                this.filterAnnotationsByLabels();
+            });
+            
+            const labelEl = document.createElement('label');
+            labelEl.htmlFor = checkbox.id;
+            
+            const swatch = document.createElement('span');
+            swatch.className = 'label-color-swatch';
+            swatch.style.backgroundColor = colorScheme[label] || colorScheme['default'];
+            
+            labelEl.appendChild(swatch);
+            labelEl.appendChild(document.createTextNode(label));
+            
+            item.appendChild(checkbox);
+            item.appendChild(labelEl);
+            container.appendChild(item);
+        });
+    }
+    
+    selectAllLabels() {
+        document.querySelectorAll('#label-checkboxes input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        this.activeLabels = new Set(this.allLabels);
+        this.filterAnnotationsByLabels();
+    }
+    
+    deselectAllLabels() {
+        document.querySelectorAll('#label-checkboxes input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        this.activeLabels.clear();
+        this.filterAnnotationsByLabels();
+    }
+    
+    filterAnnotationsByLabels() {
+        // Hide/show overlays, annotations, and lines based on active labels
+        document.querySelectorAll('.annotation-overlay').forEach(overlay => {
+            const elementType = overlay.dataset.elementType;
+            if (!elementType || this.activeLabels.has(elementType)) {
+                overlay.style.display = '';
+            } else {
+                overlay.style.display = 'none';
+            }
+        });
+        
+        document.querySelectorAll('.annotation-item').forEach(item => {
+            const elementType = item.dataset.elementType;
+            if (!elementType || this.activeLabels.has(elementType)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        document.querySelectorAll('.connection-line').forEach(line => {
+            const elementType = line.dataset.elementType;
+            if (!elementType || this.activeLabels.has(elementType)) {
+                line.style.display = '';
+            } else {
+                line.style.display = 'none';
+            }
+        });
+    }
+    
+    renderAllAnnotations() {
+        // Render bounding boxes and annotations for all pages
+        this.clearConnectionLines();
+        
+        for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+            if (this.allStructureData[pageNum] && this.allStructureData[pageNum].page) {
+                this.renderAnnotationsForPage(pageNum);
+            }
+        }
+    }
+    
+    renderAnnotationsForPage(pageNum) {
+        const structureData = this.allStructureData[pageNum];
+        if (!structureData || !structureData.page) return;
+        
+        const page = structureData.page;
+        const pageWrapper = document.querySelector(`.pdf-page-wrapper[data-page-num="${pageNum}"]`);
+        
+        if (!pageWrapper) return;
+        
+        // Create overlay container for this page if it doesn't exist
+        let overlayContainer = pageWrapper.querySelector('.page-overlay-container');
+        if (!overlayContainer) {
+            overlayContainer = document.createElement('div');
+            overlayContainer.className = 'page-overlay-container';
+            overlayContainer.style.position = 'absolute';
+            overlayContainer.style.top = '0';
+            overlayContainer.style.left = '0';
+            overlayContainer.style.width = '100%';
+            overlayContainer.style.height = '100%';
+            overlayContainer.style.pointerEvents = 'none';
+            pageWrapper.style.position = 'relative';
+            pageWrapper.appendChild(overlayContainer);
+        }
+        
+        overlayContainer.innerHTML = '';
+        
+        const canvas = pageWrapper.querySelector('canvas');
+        if (!canvas) return;
+        
+        const canvasRect = canvas.getBoundingClientRect();
+        const scaleX = canvasRect.width / page.width;
+        const scaleY = canvasRect.height / page.height;
+        
+        page.elements.forEach((element, index) => {
+            if (!element.bbox || element.bbox.length !== 4) return;
+            
+            const [x0, y0, x1, y1] = element.bbox;
+            
+            // Create overlay element
+            const overlay = document.createElement('div');
+            overlay.className = 'annotation-overlay';
+            overlay.style.position = 'absolute';
+            overlay.style.left = `${x0 * scaleX}px`;
+            overlay.style.top = `${y0 * scaleY}px`;
+            overlay.style.width = `${(x1 - x0) * scaleX}px`;
+            overlay.style.height = `${(y1 - y0) * scaleY}px`;
+            overlay.dataset.page = pageNum;
+            overlay.dataset.index = index;
+            overlay.dataset.elementType = element.type || 'unknown';
+            
+            // Apply color based on type
+            const color = this.getColorForType(element.type);
+            overlay.style.borderColor = color.replace('0.3', '1');
+            overlay.style.backgroundColor = color;
+            
+            overlay.addEventListener('click', () => this.selectAnnotation(index, pageNum));
+            
+            overlayContainer.appendChild(overlay);
+        });
+    }
+    
+    getColorForType(type) {
+        const colorScheme = {
+            'text': 'rgba(33, 150, 243, 0.3)',
+            'title': 'rgba(76, 175, 80, 0.3)',
+            'section_header': 'rgba(255, 152, 0, 0.3)',
+            'table': 'rgba(244, 67, 54, 0.3)',
+            'figure': 'rgba(156, 39, 176, 0.3)',
+            'list_item': 'rgba(0, 188, 212, 0.3)',
+        };
+        return colorScheme[type] || 'rgba(158, 158, 158, 0.3)';
+    }
+    
+    // All density chart methods moved to density-charts.js module
 }
 
 // Initialize the viewer when DOM is loaded

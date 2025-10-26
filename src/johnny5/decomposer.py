@@ -9,12 +9,15 @@ This module handles the core PDF decomposition workflow:
 import json
 import logging
 import importlib
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from docling.document_converter import DocumentConverter
+from docling.document_converter import DocumentConverter, FormatOption
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 from .utils.margins import analyze_page_margins
 from .utils.density import (
@@ -61,9 +64,10 @@ def run_decompose(
     if not pdf.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf}")
 
-    # Create cache directory
-    cache_dir = Path("_cache")
-    cache_dir.mkdir(exist_ok=True)
+    # Create cache directory using JNY5_HOME environment variable
+    jny5_home = Path(os.environ.get("JNY5_HOME", Path.home() / ".jny5"))
+    cache_dir = jny5_home / "cache" / "structure"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Convert PDF to lossless JSON using Docling
     logger.info("Converting PDF to lossless JSON using Docling")
@@ -78,20 +82,18 @@ def run_decompose(
         logger.error(f"Docling conversion failed: {e}")
         raise ValueError(f"PDF processing failed: {e}") from e
 
-    # Step 2: Apply fixup processing
-    logger.info(f"Applying fixup processing: {fixup}")
+    # Step 2: Apply fixup processing (skipping for now)
+    logger.info("Skipping fixup processing")
     corrected_json_path = cache_dir / "lossless_fixed.json"
 
     try:
-        corrected_result = _apply_fixup_rules(docling_result, fixup, pdf)
-        _write_json(corrected_result, corrected_json_path)
-        logger.info(f"Corrected output saved to: {corrected_json_path}")
+        # For now, just copy the raw output without applying fixups
+        _write_json(docling_result, corrected_json_path)
+        logger.info(f"Output saved to: {corrected_json_path}")
 
     except Exception as e:
-        logger.error(f"Fixup processing failed: {e}")
-        # Fallback: copy raw output as corrected
-        _write_json(docling_result, corrected_json_path)
-        logger.warning("Using raw Docling output as fallback")
+        logger.error(f"Failed to save output: {e}")
+        raise
 
     logger.info("PDF decomposition completed successfully")
     return corrected_json_path
@@ -114,35 +116,34 @@ def _run_docling_conversion(
     """
     logger.debug(f"Initializing Docling converter with model: {layout_model}")
 
-    # Configure pipeline options
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = enable_ocr
-    pipeline_options.do_table_structure = True
-    pipeline_options.table_structure_options.do_cell_matching = True
-
-    # Initialize converter
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: pipeline_options,
-        },
+    # Configure FormatOption for PDF with all required parameters
+    pdf_opts = FormatOption(
+        format="lossless-json",
+        include_layout=True,
+        layout_model=layout_model,
+        enable_ocr=enable_ocr,
+        dpi=json_dpi,
+        backend=PyPdfiumDocumentBackend,
+        pipeline_cls=StandardPdfPipeline,
     )
+
+    # Initialize converter with FormatOption
+    converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opts})
 
     # Convert document
     logger.debug("Running Docling conversion")
     result = converter.convert(str(pdf))
 
-    # Extract the document structure
-    doc = result.document
+    # Extract the document structure - use model_dump() to get the full structure
+    doc_dict = result.model_dump()
 
-    # Build our JSON structure
+    # Build our JSON structure from the Docling output
     json_data = {
         "metadata": {
             "source_pdf": str(pdf),
             "layout_model": layout_model,
             "ocr_enabled": enable_ocr,
             "json_dpi": json_dpi,
-            "docling_version": getattr(converter, "__version__", "unknown"),
-            "processing_timestamp": result.timestamp.isoformat() if result.timestamp else None,
         },
         "pages": [],
         "structure": {
@@ -152,22 +153,37 @@ def _run_docling_conversion(
         },
     }
 
-    # Calculate document-wide resolution for density arrays
-    # We need to collect all elements first to calculate resolution
+    # Extract pages from Docling's structure
+    # The working code uses doc["pages"] so we should use that format
+    pages = doc_dict.get("pages", [])
+
     all_pages_data = []
-    for page_idx, page in enumerate(doc.pages):
+    for page_idx, page_dict in enumerate(pages):
         logger.debug(f"Processing page {page_idx + 1}")
+
+        # Get page dimensions from page size
+        size = page_dict.get("size", {})
+        if isinstance(size, dict):
+            width = size.get("width", 612)
+            height = size.get("height", 792)
+        else:
+            width = 612
+            height = 792
 
         page_data = {
             "page_number": page_idx + 1,
-            "width": page.width,
-            "height": page.height,
+            "width": width,
+            "height": height,
             "elements": [],
         }
 
-        # Process page elements
-        for element in page.elements:
-            element_data = _extract_element_data(element, page_idx + 1)
+        # Process page predictions/layout to extract elements
+        predictions = page_dict.get("predictions", {})
+        layout = predictions.get("layout", {})
+        clusters = layout.get("clusters", [])
+
+        for cluster in clusters:
+            element_data = _extract_element_data_from_cluster(cluster, page_idx + 1, width, height)
             if element_data:
                 page_data["elements"].append(element_data)
 
@@ -199,39 +215,63 @@ def _run_docling_conversion(
     return json_data
 
 
-def _extract_element_data(element: Any, page_number: int) -> Optional[Dict[str, Any]]:
+def _extract_element_data_from_cluster(
+    cluster: Dict[str, Any], page_number: int, page_width: float, page_height: float
+) -> Optional[Dict[str, Any]]:
     """
-    Extract structured data from a Docling element.
+    Extract structured data from a Docling cluster (from lossless JSON format).
 
     Args:
-        element: Docling element object
+        cluster: Docling cluster dictionary
         page_number: Page number for context
+        page_width: Page width in points
+        page_height: Page height in points
 
     Returns:
         Dictionary containing element data, or None if element should be skipped
     """
     try:
+        # Extract label/type
+        label = cluster.get("label", "unknown")
+
+        # Extract bounding box
+        bbox_dict = cluster.get("bbox", {})
+        if isinstance(bbox_dict, dict):
+            # Format: {"l": left, "t": top, "r": right, "b": bottom}
+            x0 = bbox_dict.get("l", 0)
+            y0 = bbox_dict.get("t", 0)
+            x1 = bbox_dict.get("r", page_width)
+            y1 = bbox_dict.get("b", page_height)
+        elif isinstance(bbox_dict, list) and len(bbox_dict) == 4:
+            x0, y0, x1, y1 = bbox_dict
+        else:
+            return None
+
         element_data = {
-            "type": element.label,
+            "type": label,
             "page": page_number,
-            "bbox": [element.bbox.x0, element.bbox.y0, element.bbox.x1, element.bbox.y1],
-            "confidence": getattr(element, "confidence", 1.0),
+            "bbox": [x0, y0, x1, y1],
+            "confidence": cluster.get("confidence", 1.0),
         }
 
-        # Extract content based on element type
-        if hasattr(element, "text") and element.text:
-            element_data["content"] = element.text.strip()
-
-        if hasattr(element, "table") and element.table:
-            element_data["table"] = _extract_table_data(element.table)
-
-        if hasattr(element, "figure") and element.figure:
-            element_data["figure"] = _extract_figure_data(element.figure)
+        # Extract text content
+        if "text" in cluster:
+            element_data["content"] = str(cluster["text"]).strip()
+        elif "cells" in cluster:
+            # Extract text from cells
+            text_parts = []
+            for cell in cluster.get("cells", []):
+                if isinstance(cell, dict) and "text" in cell:
+                    text_parts.append(cell["text"])
+                elif isinstance(cell, str):
+                    text_parts.append(cell)
+            if text_parts:
+                element_data["content"] = " ".join(text_parts)
 
         return element_data
 
     except Exception as e:
-        logger.warning(f"Failed to extract element data: {e}")
+        logger.warning(f"Failed to extract element data from cluster: {e}")
         return None
 
 
