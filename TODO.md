@@ -5,11 +5,9 @@ Add to the bottom. Do not reorder.
 Removed in the PR when they are complete.
 There are other things to do of course, this is not an exhaustive list.
 
+## Enable density and label display
 
-## Enable web layout
-
-Enable the web layout as described in @SPEC.md and populate everything that can be based on the PDF alone with no fixup.
-This means PDF view, density, and log.
+Enable the docling density and label display.
 
 ## Enable disassemble (no fixup)
 
