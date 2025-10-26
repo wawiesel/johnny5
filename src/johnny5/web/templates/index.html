@@ -5,32 +5,112 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Johnny5 Web Viewer</title>
     <link rel="stylesheet" href="/static/app.css">
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
     <div id="app">
-        <header>
-            <h1>Johnny5 Document Viewer</h1>
-            <div class="pdf-info">
-                <p><strong>PDF:</strong> {{ pdf_path }}</p>
+        <div class="app-container">
+            <!-- Image Indicators -->
+            <div id="indicator-i" class="box">i</div>
+            <div id="x-density" class="box dark-text">X-Density</div>
+            <div id="indicator-d" class="box">d</div>
+            <div id="indicator-e" class="box">e</div>
+            
+            <!-- Left Side Content -->
+            <div id="y-density" class="box">Y-Density</div>
+            
+            <!-- PDF Controls Overlay - Outside scrolling container -->
+            <div class="pdf-controls-overlay">
+                <button id="zoom-out" class="control-btn" title="Zoom Out">
+                    <svg class="control-icon" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                </button>
+                <span id="zoom-level" class="zoom-display">100%</span>
+                <button id="zoom-in" class="control-btn" title="Zoom In">
+                    <svg class="control-icon" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                        <line x1="11" y1="8" x2="11" y2="14"></line>
+                        <line x1="8" y1="11" x2="14" y2="11"></line>
+                    </svg>
+                </button>
+                <button id="fit-width" class="control-btn" title="Fit Width">
+                    <svg class="control-icon" viewBox="0 0 24 24">
+                        <path d="M3 12h18"></path>
+                        <path d="M3 6h18"></path>
+                        <path d="M3 18h18"></path>
+                    </svg>
+                </button>
+                <button id="fit-height" class="control-btn" title="Fit Height">
+                    <svg class="control-icon" viewBox="0 0 24 24">
+                        <path d="M12 3v18"></path>
+                        <path d="M6 3v18"></path>
+                        <path d="M18 3v18"></path>
+                    </svg>
+                </button>
             </div>
-        </header>
-        
-        <main>
-            <div class="viewer-container">
-                <div id="pdf-viewer">
-                    <!-- PDF.js viewer will be mounted here -->
-                    <p>Loading PDF viewer...</p>
-                </div>
-                
-                <div id="sidebar">
-                    <h3>Document Structure</h3>
-                    <div id="structure-panel">
-                        <!-- Document structure will be loaded here -->
-                        <p>Loading document structure...</p>
+            
+            <div id="pdf-viewer" class="box dark-text">
+                <div id="pdf-scroller">
+                    <div class="pdf-canvas-container" id="pdf-canvas-container">
+                        <canvas id="pdf-canvas"></canvas>
+                    </div>
+                    <div class="overlay-container" id="overlay-container">
+                        <!-- Annotations will be rendered here -->
                     </div>
                 </div>
             </div>
-        </main>
+            <div id="annotations" class="box dark-text">
+                <div class="annotation-list" id="annotation-list">
+                    <!-- Annotations will be populated here -->
+                </div>
+            </div>
+            
+            <!-- Options and Logs -->
+            <div id="options" class="box">
+                <div class="pdf-controls">
+                    <div class="control-group">
+                        <label>PDF:</label>
+                        <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;">
+                        <button id="load-pdf-btn" class="control-btn">Load PDF</button>
+                        <span id="current-file-name" class="file-display">No file</span>
+                    </div>
+                </div>
+            </div>
+            <div id="log" class="box dark-text">
+                <div class="log-content" id="left-log-content">
+                    <div class="log-entry">Waiting for logs...</div>
+                </div>
+            </div>
+            
+            <!-- Toggles -->
+            <div id="toggles" class="box">
+                <div class="not-implemented">Label Toggles</div>
+            </div>
+
+            <!-- Center Divider -->
+            <div class="center-divider"></div>
+
+            <!-- Right Side Content -->
+            <div id="x-density-right" class="box dark-text">X-Density</div>
+            <div id="indicator-r" class="box">r</div>
+            <div id="reconstructed" class="box dark-text">
+                <div class="not-implemented">Reconstructed Content</div>
+            </div>
+            <div id="y-density-right" class="box dark-text">Y-Density</div>
+            <div id="options-right" class="box">
+                <div class="not-implemented">Reconstruct Options</div>
+            </div>
+            <div id="log-right" class="box dark-text">
+                <div class="log-content" id="right-log-content">
+                    <div class="log-entry">Waiting for logs...</div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script src="/static/app.js"></script>
