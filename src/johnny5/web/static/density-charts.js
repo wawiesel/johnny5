@@ -125,13 +125,13 @@ class DensityCharts {
 
     /**
      * Renders charts that are static and match the full document (Y-axes).
-     * This new version creates ONE canvas PER PAGE, matching the PDF layout.
+     * This version CALCULATES height instead of reading it, avoiding race conditions.
      */
-    renderStaticCharts() {
+    async renderStaticCharts() {
         const yDensityScroller = document.getElementById('y-density');
         const yDensityRight = document.getElementById('y-density-right');
         
-        if (!yDensityScroller || !yDensityRight) return;
+        if (!yDensityScroller || !yDensityRight || !this.viewer.pdfDoc) return;
 
         // Clear any old canvases
         yDensityScroller.innerHTML = '';
@@ -156,15 +156,19 @@ class DensityCharts {
         if (globalMaxValue === 0) return; // No data
 
         // Loop through each page and create a matching canvas
-        pageWrappers.forEach((wrapper, index) => {
+        for (let i = 0; i < pageWrappers.length; i++) {
+            const wrapper = pageWrappers[i];
             const pageNum = parseInt(wrapper.dataset.pageNum, 10);
             const pageData = this.viewer.allDensityData[pageNum];
-            const pageHeight = wrapper.offsetHeight;
             const data = (pageData && pageData.y) ? pageData.y : [];
-
-            if (pageHeight <= 0) return; // Skip if page not rendered
             
-            // Also get the margin bottom from the PDF page wrapper
+            // Calculate the height using the same logic as the PDF renderer
+            const page = await this.viewer.pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: this.viewer.scale });
+            const pageHeight = Math.floor(viewport.height);
+
+            if (pageHeight <= 0) continue;
+            
             const marginBottom = parseInt(window.getComputedStyle(wrapper).marginBottom) || 5;
 
             // --- 1. Create LEFT Y-Density Canvas for this page ---
@@ -172,7 +176,7 @@ class DensityCharts {
             canvas.style.width = '100%';
             canvas.style.height = `${pageHeight}px`;
             canvas.style.display = 'block';
-            canvas.style.marginBottom = `${marginBottom}px`; // Match PDF page margin
+            canvas.style.marginBottom = `${marginBottom}px`;
             
             yDensityScroller.appendChild(canvas);
             this.renderPageDensityChart(canvas, data, globalMaxValue, pageHeight, '#4CAF50');
@@ -182,11 +186,11 @@ class DensityCharts {
             rightCanvas.style.width = '100%';
             rightCanvas.style.height = `${pageHeight}px`;
             rightCanvas.style.display = 'block';
-            rightCanvas.style.marginBottom = `${marginBottom}px`; // Match PDF page margin
+            rightCanvas.style.marginBottom = `${marginBottom}px`;
             
             yDensityRight.appendChild(rightCanvas);
             this.renderPageDensityChart(rightCanvas, data, globalMaxValue, pageHeight, '#2196F3');
-        });
+        }
     }
 
     /**

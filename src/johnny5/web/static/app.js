@@ -257,7 +257,7 @@ class Johnny5Viewer {
                 this.renderAllAnnotations();
                 
                 // Render static Y-axis charts (full document)
-                this.densityCharts.renderStaticCharts();
+                await this.densityCharts.renderStaticCharts();
                 // Render dynamic X-axis charts (for current page)
                 this.densityCharts.updateDynamicCharts();
             } else {
@@ -417,16 +417,16 @@ class Johnny5Viewer {
 
     zoomIn() {
         this.scale = Math.min(this.scale * 1.2, 20.0); // Allow zoom up to 20x
-        this.renderAllPages().then(() => {
-            this.densityCharts.renderStaticCharts();
+        this.renderAllPages().then(async () => {
+            await this.densityCharts.renderStaticCharts();
         });
         this.updateZoomInfo();
     }
 
     zoomOut() {
         this.scale = Math.max(this.scale / 1.2, 0.1);
-        this.renderAllPages().then(() => {
-            this.densityCharts.renderStaticCharts();
+        this.renderAllPages().then(async () => {
+            await this.densityCharts.renderStaticCharts();
         });
         this.updateZoomInfo();
     }
