@@ -7,12 +7,15 @@ There are other things to do of course, this is not an exhaustive list.
 
 ## Enable density and label display
 
-Enable the docling density and label display.
+Enable the docling density and label display in the web viewer - show the X/Y density charts and label toggles for filtering annotations.
 
-## Enable disassemble (no fixup)
+## Enable disassemble (no fixup) workflow
 
-Implement the disassemble (no fixup) with full web view of the annotations and on-the-fly toggles for all possible labels
-based on the docling spec. Implement tests to verify.
+Implement the full disassemble workflow in the web viewer:
+- Display annotations with on-the-fly toggles for all possible labels (based on docling spec)
+- Visual indicators showing connection lines from PDF elements to annotations
+- Support for image panel indicators (i, d, e, r)
+- Implement tests to verify the workflow
 
 ## Enable disassemble with fixup
 
