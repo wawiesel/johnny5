@@ -40,87 +40,6 @@ class DensityCharts {
         });
     }
 
-    renderYDensityChart() {
-        const canvas = document.getElementById('y-density-chart');
-        if (!canvas) return;
-        
-        const pdfScroller = document.getElementById('pdf-scroller');
-        if (!pdfScroller) return;
-
-        // Use requestAnimationFrame to run *after* the browser has calculated layout
-        requestAnimationFrame(() => {
-            const totalPdfHeight = pdfScroller.scrollHeight;
-            const parentWidth = canvas.parentElement.offsetWidth;
-            
-            if (totalPdfHeight <= 0 || parentWidth <= 0) return;
-            
-            const pageWrappers = document.querySelectorAll('.pdf-page-wrapper');
-            if (pageWrappers.length === 0) return;
-
-            console.log(`[renderYDensityChart] Rendering with PDF height: ${totalPdfHeight}`);
-
-            const ctx = canvas.getContext('2d');
-            const dpr = window.devicePixelRatio;
-            
-            canvas.width = parentWidth * dpr;
-            canvas.height = totalPdfHeight * dpr;
-            ctx.scale(dpr, dpr);
-            
-            ctx.clearRect(0, 0, parentWidth, totalPdfHeight);
-            
-            let globalMaxValue = 0;
-            const allPageData = [];
-            
-            pageWrappers.forEach(wrapper => {
-                const pageNum = parseInt(wrapper.dataset.pageNum, 10);
-                const pageData = this.viewer.allDensityData[pageNum];
-                if (pageData && pageData.y && Array.isArray(pageData.y)) {
-                    allPageData.push({ 
-                        pageNum, 
-                        data: pageData.y,
-                        wrapperTop: wrapper.offsetTop,
-                        wrapperHeight: wrapper.offsetHeight
-                    });
-                    const pageMax = Math.max(...pageData.y);
-                    if (pageMax > globalMaxValue) {
-                        globalMaxValue = pageMax;
-                    }
-                }
-            });
-
-            if (globalMaxValue === 0) return;
-
-            ctx.fillStyle = '#4CAF50';
-
-            allPageData.forEach((page, idx) => {
-                const { data, wrapperTop, wrapperHeight } = page;
-                if (!data || data.length === 0 || wrapperHeight <= 0) return;
-
-                const barHeight = wrapperHeight / data.length;
-
-                data.forEach((value, index) => {
-                    const barWidth = (value / globalMaxValue) * parentWidth;
-                    const x = parentWidth - barWidth;
-                    const y = wrapperTop + (index * barHeight); 
-                    ctx.fillRect(x, y, barWidth, barHeight);
-                });
-
-                // Draw page break line
-                const pageEndY = wrapperTop + wrapperHeight;
-                if (idx < allPageData.length - 1) {
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(0, pageEndY);
-                    ctx.lineTo(parentWidth, pageEndY);
-                    ctx.stroke();
-                }
-            });
-            
-            canvas.style.width = parentWidth + 'px';
-            canvas.style.height = totalPdfHeight + 'px';
-        });
-    }
 
     renderXDensityChart(densityData) {
         const canvas = document.getElementById('x-density-chart');
@@ -190,96 +109,6 @@ class DensityCharts {
         });
     }
 
-    /**
-     * Gathers Y-density data from all pages into a single array.
-     */
-    getAllYDensityData() {
-        let combinedData = [];
-        for (let pageNum = 1; pageNum <= this.viewer.totalPages; pageNum++) {
-            const pageData = this.viewer.allDensityData[pageNum];
-            if (pageData && pageData.y) {
-                combinedData = combinedData.concat(pageData.y);
-            }
-        }
-        return combinedData;
-    }
-
-    /**
-     * Renders the RIGHT Y-density chart using ALL page data.
-     */
-    renderYDensityRightChart() {
-        const canvas = document.getElementById('y-density-right-chart');
-        if (!canvas) return;
-
-        const pdfScroller = document.getElementById('pdf-scroller');
-        if (!pdfScroller) return;
-
-        // Use requestAnimationFrame for consistency
-        requestAnimationFrame(() => {
-            const totalPdfHeight = pdfScroller.scrollHeight;
-            const parentWidth = canvas.parentElement.offsetWidth;
-
-            if (totalPdfHeight <= 0 || parentWidth <= 0) return;
-
-            const pageWrappers = document.querySelectorAll('.pdf-page-wrapper');
-            if (pageWrappers.length === 0) return;
-
-            const ctx = canvas.getContext('2d');
-            const dpr = window.devicePixelRatio;
-
-            canvas.width = parentWidth * dpr;
-            canvas.height = totalPdfHeight * dpr;
-            ctx.scale(dpr, dpr);
-            
-            ctx.clearRect(0, 0, parentWidth, totalPdfHeight);
-            
-            let globalMaxValue = 0;
-            const allPageData = [];
-            pageWrappers.forEach(wrapper => {
-                const pageNum = parseInt(wrapper.dataset.pageNum, 10);
-                const pageData = this.viewer.allDensityData[pageNum]; 
-                if (pageData && pageData.y && Array.isArray(pageData.y)) {
-                    // Calculate position relative to pdf-scroller
-                    const rect = wrapper.getBoundingClientRect();
-                    const scrollerRect = pdfScroller.getBoundingClientRect();
-                    const absoluteTop = rect.top - scrollerRect.top + pdfScroller.scrollTop;
-                    
-                    allPageData.push({ 
-                        pageNum, 
-                        data: pageData.y,
-                        wrapperTop: absoluteTop,
-                        wrapperHeight: wrapper.offsetHeight
-                    });
-                    const pageMax = Math.max(...pageData.y);
-                    if (pageMax > globalMaxValue) {
-                        globalMaxValue = pageMax;
-                    }
-                }
-            });
-
-            if (globalMaxValue === 0) return;
-
-            ctx.fillStyle = '#2196F3';
-
-            allPageData.forEach((page) => {
-                const { data, wrapperTop, wrapperHeight } = page;
-                if (!data || data.length === 0 || wrapperHeight <= 0) return;
-
-                const barHeight = wrapperHeight / data.length;
-
-                data.forEach((value, index) => {
-                    const barWidth = (value / globalMaxValue) * parentWidth;
-                    const x = parentWidth - barWidth;
-                    const y = wrapperTop + (index * barHeight);
-                    
-                    ctx.fillRect(x, y, barWidth, barHeight);
-                });
-            });
-
-            canvas.style.width = parentWidth + 'px';
-            canvas.style.height = totalPdfHeight + 'px';
-        });
-    }
 
     /**
      * Renders charts that update as the current page changes (X-axes).
@@ -296,10 +125,95 @@ class DensityCharts {
 
     /**
      * Renders charts that are static and match the full document (Y-axes).
+     * This new version creates ONE canvas PER PAGE, matching the PDF layout.
      */
     renderStaticCharts() {
-        this.renderYDensityChart();
-        this.renderYDensityRightChart();
+        const yDensityScroller = document.getElementById('y-density');
+        const yDensityRight = document.getElementById('y-density-right');
+        
+        if (!yDensityScroller || !yDensityRight) return;
+
+        // Clear any old canvases
+        yDensityScroller.innerHTML = '';
+        yDensityRight.innerHTML = '';
+        
+        const pageWrappers = document.querySelectorAll('.pdf-page-wrapper');
+        if (pageWrappers.length === 0) return;
+
+        // Find the global max value for scaling *all* charts consistently
+        let globalMaxValue = 0;
+        pageWrappers.forEach(wrapper => {
+            const pageNum = parseInt(wrapper.dataset.pageNum, 10);
+            const pageData = this.viewer.allDensityData[pageNum];
+            if (pageData && pageData.y && Array.isArray(pageData.y)) {
+                const pageMax = Math.max(...pageData.y);
+                if (pageMax > globalMaxValue) {
+                    globalMaxValue = pageMax;
+                }
+            }
+        });
+
+        if (globalMaxValue === 0) return; // No data
+
+        // Loop through each page and create a matching canvas
+        pageWrappers.forEach(wrapper => {
+            const pageNum = parseInt(wrapper.dataset.pageNum, 10);
+            const pageData = this.viewer.allDensityData[pageNum];
+            const pageHeight = wrapper.offsetHeight;
+            const data = (pageData && pageData.y) ? pageData.y : [];
+
+            if (pageHeight <= 0) return; // Skip if page not rendered
+
+            // --- 1. Create LEFT Y-Density Canvas for this page ---
+            const canvas = document.createElement('canvas');
+            canvas.style.width = '100%';
+            canvas.style.height = `${pageHeight}px`;
+            canvas.style.display = 'block';
+            canvas.style.marginBottom = '5px'; // Match PDF page margin
+            
+            yDensityScroller.appendChild(canvas);
+            this.renderPageDensityChart(canvas, data, globalMaxValue, pageHeight, '#4CAF50');
+
+            // --- 2. Create RIGHT Y-Density Canvas for this page ---
+            const rightCanvas = document.createElement('canvas');
+            rightCanvas.style.width = '100%';
+            rightCanvas.style.height = `${pageHeight}px`;
+            rightCanvas.style.display = 'block';
+            rightCanvas.style.marginBottom = '5px'; // Match PDF page margin
+            
+            yDensityRight.appendChild(rightCanvas);
+            this.renderPageDensityChart(rightCanvas, data, globalMaxValue, pageHeight, '#2196F3');
+        });
+    }
+
+    /**
+     * Helper function to render density data onto a specific canvas for a single page.
+     */
+    renderPageDensityChart(canvas, data, globalMaxValue, pageHeight, color) {
+        const parentWidth = canvas.parentElement.offsetWidth;
+        if (parentWidth <= 0 || pageHeight <= 0) return;
+
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio;
+
+        canvas.width = parentWidth * dpr;
+        canvas.height = pageHeight * dpr;
+        ctx.scale(dpr, dpr);
+
+        ctx.clearRect(0, 0, parentWidth, pageHeight);
+        
+        if (!data || data.length === 0) return;
+        
+        ctx.fillStyle = color;
+        const barHeight = pageHeight / data.length;
+
+        data.forEach((value, index) => {
+            const barWidth = (value / globalMaxValue) * parentWidth;
+            const x = parentWidth - barWidth;
+            const y = index * barHeight; // Simple top-to-bottom
+            
+            ctx.fillRect(x, y, barWidth, barHeight);
+        });
     }
 }
 

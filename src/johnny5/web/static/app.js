@@ -417,13 +417,17 @@ class Johnny5Viewer {
 
     zoomIn() {
         this.scale = Math.min(this.scale * 1.2, 20.0); // Allow zoom up to 20x
-        this.renderAllPages();
+        this.renderAllPages().then(() => {
+            this.densityCharts.renderStaticCharts();
+        });
         this.updateZoomInfo();
     }
 
     zoomOut() {
         this.scale = Math.max(this.scale / 1.2, 0.1);
-        this.renderAllPages();
+        this.renderAllPages().then(() => {
+            this.densityCharts.renderStaticCharts();
+        });
         this.updateZoomInfo();
     }
     

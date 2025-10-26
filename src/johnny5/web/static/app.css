@@ -85,6 +85,7 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
+    padding: 5px; /* Match PDF container padding */
     /* Hide scrollbar but keep functionality */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
