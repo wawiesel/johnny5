@@ -105,32 +105,21 @@ body {
 
 /* PDF Controls Overlay */
 .pdf-controls-overlay {
-    /* Place in same grid cell as pdf-viewer */
-    grid-row: 2 / 3;
-    grid-column: 2 / 3;
-    
-    /* Align this box to the top-right of its grid cell */
-    align-self: start;
-    justify-self: end;
-    
-    /* Add margin for spacing */
-    margin-top: 15px;
-    margin-right: 15px;
+    /* Position absolutely within #pdf-viewer */
+    position: absolute;
+    top: 15px;
+    right: 15px;
     
     /* Ensure it's on top */
     z-index: 100;
     
-    /* Set height/width so it doesn't stretch */
-    height: auto;
-    width: auto;
-    
-    /* Styling */
+    /* Styling - match page count overlay size */
     background: rgba(0, 0, 0, 0.3);
     border-radius: 8px;
-    padding: 0.5rem;
+    padding: 0.35rem 0.5rem;
     display: flex;
     flex-direction: row; /* Single row of controls */
-    gap: 0.5rem;
+    gap: 0.25rem;
     align-items: center;
     opacity: 0.4;
     transition: all 0.3s ease;
@@ -144,6 +133,21 @@ body {
     transform: scale(1.05);
 }
 
+#page-count-overlay {
+    position: absolute;
+    top: 15px;
+    left: 15px; /* Placed in top-left */
+    z-index: 100;
+    
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    pointer-events: none; /* Prevents it from blocking clicks */
+}
+
 .pdf-controls-overlay .control-group {
     display: flex;
     align-items: center;
@@ -155,13 +159,13 @@ body {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: white;
-    padding: 0.5rem;
-    border-radius: 6px;
+    padding: 0.2rem;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     transition: all 0.2s;
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 24px;
+    min-height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -184,8 +188,8 @@ body {
 }
 
 .pdf-controls-overlay .control-icon {
-    width: 16px;
-    height: 16px;
+    width: 12px;
+    height: 12px;
     stroke: currentColor;
     stroke-width: 2;
     fill: none;
@@ -195,13 +199,13 @@ body {
 
 .pdf-controls-overlay .zoom-display {
     background: rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
     font-weight: 600;
-    min-width: 50px;
+    min-width: 40px;
     text-align: center;
     color: white;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
@@ -246,6 +250,8 @@ body {
     background-color: #8a2be2;
     padding: 0.5rem;
     overflow-y: auto;
+    align-items: flex-start; /* Override .box centering */
+    justify-content: flex-start; /* Override .box centering */
 }
 
 /* PDF Controls */
@@ -321,10 +327,26 @@ body {
 #log {
     grid-row: 4 / 5; grid-column: 1 / 3;
     background-color: #ffa500;
-    padding: 0.5rem;
-    overflow-y: auto;
     font-family: 'Courier New', monospace;
     font-size: 0.8rem;
+    position: relative; /* Anchor for absolutely positioned button */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Override .box centering */
+    justify-content: flex-start; /* Override .box centering */
+}
+
+.log-scroll-container {
+    flex: 1;
+    width: 100%;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.log-content {
+    direction: ltr; /* Left-to-right text direction */
+    text-align: left;
 }
 
 #log-right {
@@ -336,14 +358,94 @@ body {
     font-size: 0.8rem;
 }
 
-/* Log content styling */
-.log-content {
-    direction: ltr; /* Left-to-right text direction */
-}
+/* Log content styling - merged with above */
 
 .log-entry {
     text-align: left;
     margin-bottom: 0.25rem;
+    white-space: pre-wrap; /* Preserve formatting */
+}
+
+/* Options title - positioned near the toggle */
+.options-title {
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    position: absolute;
+    top: 8px;
+    right: 35px; /* Just to the left of the toggle button */
+    pointer-events: none; /* Don't block clicks */
+}
+
+/* Collapsible options button - positioned in upper right */
+.options-toggle {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    z-index: 10;
+    line-height: 1.2;
+    min-width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.options-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Collapsed options panel - show a thin line */
+.options-collapsed {
+    height: 25px !important;
+    min-height: 25px !important;
+    max-height: 25px !important;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.options-collapsed .pdf-controls {
+    display: none;
+}
+
+/* Expanded log panel */
+.log-expanded {
+    grid-row: 3 / 5 !important;
+}
+
+#options {
+    transition: max-height 0.3s ease;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+/* Copy log button - always in bottom right of log box */
+.log-copy-button {
+    position: absolute;
+    bottom: 25px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    z-index: 100;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.log-copy-button:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.7);
 }
 
 /* --- CENTER DIVIDER --- */
@@ -359,7 +461,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-start; /* Left-align content for proper panning */
-    padding: 20px;
+    padding: 5px;
     min-height: 200vh; /* Ensure content is much taller than viewport for scrolling */
     /* Removed width: 100% to allow container to grow wider than parent for zoom/pan */
 }

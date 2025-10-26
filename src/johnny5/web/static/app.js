@@ -61,8 +61,8 @@ class Johnny5Viewer {
         // Configure PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         
-        // Set default scale for crisp rendering
-        this.scale = window.devicePixelRatio || 1;
+        // Set default scale to 1.0; fitWidth() will calculate the correct initial scale
+        this.scale = 1.0;
     }
 
     setupEventListeners() {
@@ -96,11 +96,19 @@ class Johnny5Viewer {
         document.getElementById('fit-width').addEventListener('click', () => this.fitWidth());
         document.getElementById('fit-height').addEventListener('click', () => this.fitHeight());
         
+        // Options toggle
+        document.getElementById('options-toggle').addEventListener('click', () => this.toggleOptions());
+        
+        // Log copy button
+        document.getElementById('log-copy-button').addEventListener('click', () => this.copyLog());
+        
+        // Page count overlay updates on scroll
+        document.getElementById('pdf-scroller').addEventListener('scroll', () => this.updateCurrentPage());
+        
         // Trackpad/wheel zoom support
         this.setupTrackpadSupport();
         
-        // Scroll synchronization
-        this.setupScrollSync();
+        // Scroll synchronization (to be implemented)
     }
 
     connectWebSocket() {
@@ -180,17 +188,8 @@ class Johnny5Viewer {
             console.log(`Test PDF loaded successfully. Pages: ${this.totalPages}`);
             this.addLogEntry('left', `Test PDF loaded successfully. Pages: ${this.totalPages}`);
             
-            // Debug: Check PDF viewer dimensions
-            const pdfViewer = document.getElementById('pdf-viewer');
-            console.log(`PDF viewer dimensions: ${pdfViewer.clientWidth}x${pdfViewer.clientHeight}`);
-            
-            // Fit to width to set the initial scale *before* rendering
+            // Fit to width (this will set the scale and render all pages)
             await this.fitWidth();
-            
-            // Debug: Check container dimensions after rendering
-            const container = document.getElementById('pdf-canvas-container');
-            console.log(`Container dimensions after rendering: ${container.scrollWidth}x${container.scrollHeight}`);
-            console.log(`Container scrollable: ${container.scrollHeight > pdfViewer.clientHeight}`);
             
             // Load structure and density data for all pages
             await this.loadAllPageData();
@@ -384,6 +383,7 @@ class Johnny5Viewer {
 
     renderXDensityChart() {
         const canvas = document.getElementById('x-density-chart');
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         
         // Set canvas size
@@ -410,6 +410,7 @@ class Johnny5Viewer {
 
     renderYDensityChart() {
         const canvas = document.getElementById('y-density-chart');
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         
         // Set canvas size
@@ -495,6 +496,9 @@ class Johnny5Viewer {
             
             console.log(`Successfully rendered all ${this.totalPages} pages`);
             this.addLogEntry('left', `Successfully rendered ${this.totalPages} pages`);
+            
+            // Update the page counter after initial render
+            this.updateCurrentPage();
         } catch (error) {
             console.error('Error rendering pages:', error);
             this.addLogEntry('left', `Error rendering pages: ${error.message}`, 'error');
@@ -514,19 +518,9 @@ class Johnny5Viewer {
         // Create a page wrapper div for better spacing and debugging
         const pageWrapper = document.createElement('div');
         pageWrapper.className = 'pdf-page-wrapper';
-        pageWrapper.style.marginBottom = '40px';
+        pageWrapper.dataset.pageNum = pageNum;
+        pageWrapper.style.marginBottom = '5px';
         pageWrapper.style.position = 'relative';
-        
-        // Add page number indicator
-        const pageLabel = document.createElement('div');
-        pageLabel.textContent = `Page ${pageNum}`;
-        pageLabel.style.position = 'absolute';
-        pageLabel.style.top = '-25px';
-        pageLabel.style.left = '0';
-        pageLabel.style.fontSize = '12px';
-        pageLabel.style.color = '#666';
-        pageLabel.style.fontWeight = 'bold';
-        pageWrapper.appendChild(pageLabel);
         
         // Create canvas with high-DPI support
         const canvas = document.createElement('canvas');
@@ -579,11 +573,24 @@ class Johnny5Viewer {
     async fitWidth() {
         if (!this.pdfDoc) return;
         
+        // Wait for container to have dimensions
+        await new Promise(resolve => {
+            const checkContainer = () => {
+                const container = document.getElementById('pdf-viewer');
+                if (container && container.clientWidth > 0) {
+                    resolve();
+                } else {
+                    requestAnimationFrame(checkContainer);
+                }
+            };
+            checkContainer();
+        });
+        
         const page = await this.pdfDoc.getPage(1);
         const viewport = page.getViewport({ scale: 1.0 });
         const container = document.getElementById('pdf-viewer');
-        // Use 40px padding (20px left/right) from .pdf-canvas-container
-        const containerWidth = container.clientWidth - 40;
+        // Use 10px padding (5px left/right) from .pdf-canvas-container
+        const containerWidth = container.clientWidth - 10;
         
         // Calculate scale for width
         this.scale = containerWidth / viewport.width;
@@ -602,8 +609,8 @@ class Johnny5Viewer {
         const viewport = page.getViewport({ scale: 1.0 });
         const container = document.getElementById('pdf-viewer');
 
-        // container.clientHeight - 40px (20px top + 20px bottom padding)
-        const containerHeight = container.clientHeight - 40;
+        // container.clientHeight - 10px (5px top + 5px bottom padding)
+        const containerHeight = container.clientHeight - 10;
 
         // Calculate scale for height
         this.scale = containerHeight / viewport.height;
@@ -667,11 +674,11 @@ class Johnny5Viewer {
     }
     
     setupTrackpadSupport() {
-        const pdfViewer = document.getElementById('pdf-viewer');
+        const pdfScroller = document.getElementById('pdf-scroller');
         let lastWheelTime = 0;
         let isZooming = false;
         
-        pdfViewer.addEventListener('wheel', (e) => {
+        pdfScroller.addEventListener('wheel', (e) => {
             // Check if this is a zoom gesture (Ctrl/Cmd + wheel)
             if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
@@ -694,24 +701,25 @@ class Johnny5Viewer {
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             
+            const pdfScroller = document.getElementById('pdf-scroller');
             switch(e.key) {
                 case 'ArrowUp':
                 case 'PageUp':
                     e.preventDefault();
-                    pdfViewer.scrollBy({ top: -pdfViewer.clientHeight * 0.8, behavior: 'smooth' });
+                    pdfScroller.scrollBy({ top: -pdfScroller.clientHeight * 0.8, behavior: 'smooth' });
                     break;
                 case 'ArrowDown':
                 case 'PageDown':
                     e.preventDefault();
-                    pdfViewer.scrollBy({ top: pdfViewer.clientHeight * 0.8, behavior: 'smooth' });
+                    pdfScroller.scrollBy({ top: pdfScroller.clientHeight * 0.8, behavior: 'smooth' });
                     break;
                 case 'Home':
                     e.preventDefault();
-                    pdfViewer.scrollTo({ top: 0, behavior: 'smooth' });
+                    pdfScroller.scrollTo({ top: 0, behavior: 'smooth' });
                     break;
                 case 'End':
                     e.preventDefault();
-                    pdfViewer.scrollTo({ top: pdfViewer.scrollHeight, behavior: 'smooth' });
+                    pdfScroller.scrollTo({ top: pdfScroller.scrollHeight, behavior: 'smooth' });
                     break;
             }
         });
@@ -745,6 +753,70 @@ class Johnny5Viewer {
             this.addLogEntry('left', `Error loading PDF: ${error.message}`, 'error');
             console.error('Error loading PDF:', error);
         }
+    }
+
+    updateCurrentPage() {
+        const scroller = document.getElementById('pdf-scroller');
+        const pageWrappers = document.querySelectorAll('.pdf-page-wrapper');
+        const overlay = document.getElementById('page-count-overlay');
+        
+        if (!scroller || pageWrappers.length === 0 || !overlay) return;
+
+        // Get the vertical center of the scroller's visible area
+        const scrollerCenter = scroller.scrollTop + (scroller.clientHeight / 2);
+
+        let closestPage = 1;
+        let minDistance = Infinity;
+
+        pageWrappers.forEach(wrapper => {
+            const pageTop = wrapper.offsetTop;
+            const pageCenter = pageTop + (wrapper.offsetHeight / 2);
+            
+            // Find which page's center is closest to the scroller's center
+            const distance = Math.abs(pageCenter - scrollerCenter);
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestPage = parseInt(wrapper.dataset.pageNum, 10);
+            }
+        });
+
+        this.currentPage = closestPage;
+        overlay.textContent = `${this.currentPage} / ${this.totalPages}`;
+    }
+
+    toggleOptions() {
+        const optionsPanel = document.getElementById('options');
+        const toggleButton = document.getElementById('options-toggle');
+        const logPanel = document.getElementById('log');
+        
+        if (optionsPanel.classList.contains('options-collapsed')) {
+            optionsPanel.classList.remove('options-collapsed');
+            logPanel.classList.remove('log-expanded');
+            toggleButton.textContent = '▼';
+            optionsPanel.style.height = '';
+        } else {
+            optionsPanel.classList.add('options-collapsed');
+            logPanel.classList.add('log-expanded');
+            toggleButton.textContent = '▶';
+            optionsPanel.style.height = '25px'; // Show a sliver
+        }
+    }
+
+    copyLog() {
+        const logContent = document.getElementById('left-log-content');
+        const text = logContent.innerText;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            const copyButton = document.getElementById('log-copy-button');
+            const originalText = copyButton.textContent;
+            copyButton.textContent = 'Copied!';
+            setTimeout(() => {
+                copyButton.textContent = originalText;
+            }, 1000);
+        }).catch(err => {
+            console.error('Failed to copy log:', err);
+        });
     }
 }
 
