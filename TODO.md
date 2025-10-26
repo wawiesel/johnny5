@@ -5,16 +5,25 @@ Add to the bottom. Do not reorder.
 Removed in the PR when they are complete.
 There are other things to do of course, this is not an exhaustive list.
 
+## Enable disassemble (no fixup) workflow
 
-## Enable web layout
+Enable the docling density and label display in the web viewer - show the X/Y density charts and label toggles for filtering annotations.
+- Display annotations with on-the-fly toggles for all possible labels (based on docling spec)
+- Visual indicators showing connection lines from PDF elements to annotations
+- Implement tests to verify the workflow
 
-Enable the web layout as described in @SPEC.md and populate everything that can be based on the PDF alone with no fixup.
-This means PDF view, density, and log.
+## Enable caching system
 
-## Enable disassemble (no fixup)
+Implement the content-based caching system described in @SPEC.md:
+- Cache key generation from input file hash and fixup module
+- JNY5_HOME environment variable support for cache location
+- CLI commands to display cache keys
+- Cache invalidation and cleanup mechanisms
+- Foundation for hot reloading functionality
 
-Implement the disassemble (no fixup) with full web view of the annotations and on-the-fly toggles for all possible labels
-based on the docling spec. Implement tests to verify.
+## Enable image panels for i and d
+
+i is image based on checksum before fixup, d is after
 
 ## Enable disassemble with fixup
 

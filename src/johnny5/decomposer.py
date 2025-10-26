@@ -15,10 +15,14 @@ from typing import Any, Dict, List, Optional
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 from .utils.margins import analyze_page_margins
-from .utils.density import compute_horizontal_density, compute_vertical_density
+from .utils.density import (
+    compute_horizontal_density,
+    compute_vertical_density,
+    compute_density_arrays,
+    calculate_document_resolution,
+)
 from .utils.fixup_context import FixupContext
 
 # Configure logging
@@ -116,12 +120,11 @@ def _run_docling_conversion(
     pipeline_options.do_table_structure = True
     pipeline_options.table_structure_options.do_cell_matching = True
 
-    # Initialize converter with backend
+    # Initialize converter
     converter = DocumentConverter(
         format_options={
             InputFormat.PDF: pipeline_options,
         },
-        backend=PyPdfiumDocumentBackend(),
     )
 
     # Convert document
@@ -149,7 +152,9 @@ def _run_docling_conversion(
         },
     }
 
-    # Process each page
+    # Calculate document-wide resolution for density arrays
+    # We need to collect all elements first to calculate resolution
+    all_pages_data = []
     for page_idx, page in enumerate(doc.pages):
         logger.debug(f"Processing page {page_idx + 1}")
 
@@ -166,10 +171,24 @@ def _run_docling_conversion(
             if element_data:
                 page_data["elements"].append(element_data)
 
+        all_pages_data.append(page_data)
+
+    # Calculate document-wide resolution
+    doc_resolution = calculate_document_resolution(all_pages_data)
+    logger.debug(f"Document resolution for density arrays: {doc_resolution}")
+
+    # Now process each page with density arrays
+    for page_data in all_pages_data:
         # Analyze page-level properties
         page_data["margins"] = analyze_page_margins(page_data["elements"])
         page_data["horizontal_density"] = compute_horizontal_density(page_data["elements"])
         page_data["vertical_density"] = compute_vertical_density(page_data["elements"])
+
+        # Compute density arrays for visualization
+        x_density, y_density = compute_density_arrays(
+            page_data["elements"], page_data["width"], page_data["height"], doc_resolution
+        )
+        page_data["_density"] = {"x": x_density, "y": y_density, "resolution": doc_resolution}
 
         json_data["pages"].append(page_data)
 
@@ -330,6 +349,10 @@ def _apply_fixup_rules(docling_result: Dict[str, Any], fixup: str, pdf: Path) ->
             logger.warning("Fixup module returned None, using original result")
             return docling_result
 
+        # Recompute density arrays for corrected result
+        logger.debug("Recomputing density arrays after fixup")
+        corrected_result = _recompute_density_arrays(corrected_result)
+
         logger.info("Fixup processing completed successfully")
         return corrected_result
 
@@ -340,6 +363,29 @@ def _apply_fixup_rules(docling_result: Dict[str, Any], fixup: str, pdf: Path) ->
         logger.error(f"Fixup processing failed: {e}")
         logger.warning("Using original Docling result as fallback")
         return docling_result
+
+
+def _recompute_density_arrays(result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recompute density arrays after fixup processing.
+
+    Args:
+        result: Document result (may be modified by fixup)
+
+    Returns:
+        Result with updated density arrays
+    """
+    # Calculate document-wide resolution
+    doc_resolution = calculate_document_resolution(result["pages"])
+
+    # Update density arrays for each page
+    for page_data in result["pages"]:
+        x_density, y_density = compute_density_arrays(
+            page_data["elements"], page_data["width"], page_data["height"], doc_resolution
+        )
+        page_data["_density"] = {"x": x_density, "y": y_density, "resolution": doc_resolution}
+
+    return result
 
 
 def _write_json(data: Dict[str, Any], output_path: Path) -> None:
@@ -376,7 +422,6 @@ def load_docling_pipeline(layout_model: str, enable_ocr: bool) -> DocumentConver
         format_options={
             InputFormat.PDF: pipeline_options,
         },
-        backend=PyPdfiumDocumentBackend(),
     )
 
     return converter
