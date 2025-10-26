@@ -156,20 +156,23 @@ class DensityCharts {
         if (globalMaxValue === 0) return; // No data
 
         // Loop through each page and create a matching canvas
-        pageWrappers.forEach(wrapper => {
+        pageWrappers.forEach((wrapper, index) => {
             const pageNum = parseInt(wrapper.dataset.pageNum, 10);
             const pageData = this.viewer.allDensityData[pageNum];
             const pageHeight = wrapper.offsetHeight;
             const data = (pageData && pageData.y) ? pageData.y : [];
 
             if (pageHeight <= 0) return; // Skip if page not rendered
+            
+            // Also get the margin bottom from the PDF page wrapper
+            const marginBottom = parseInt(window.getComputedStyle(wrapper).marginBottom) || 5;
 
             // --- 1. Create LEFT Y-Density Canvas for this page ---
             const canvas = document.createElement('canvas');
             canvas.style.width = '100%';
             canvas.style.height = `${pageHeight}px`;
             canvas.style.display = 'block';
-            canvas.style.marginBottom = '5px'; // Match PDF page margin
+            canvas.style.marginBottom = `${marginBottom}px`; // Match PDF page margin
             
             yDensityScroller.appendChild(canvas);
             this.renderPageDensityChart(canvas, data, globalMaxValue, pageHeight, '#4CAF50');
@@ -179,7 +182,7 @@ class DensityCharts {
             rightCanvas.style.width = '100%';
             rightCanvas.style.height = `${pageHeight}px`;
             rightCanvas.style.display = 'block';
-            rightCanvas.style.marginBottom = '5px'; // Match PDF page margin
+            rightCanvas.style.marginBottom = `${marginBottom}px`; // Match PDF page margin
             
             yDensityRight.appendChild(rightCanvas);
             this.renderPageDensityChart(rightCanvas, data, globalMaxValue, pageHeight, '#2196F3');
@@ -210,7 +213,7 @@ class DensityCharts {
         data.forEach((value, index) => {
             const barWidth = (value / globalMaxValue) * parentWidth;
             const x = parentWidth - barWidth;
-            const y = index * barHeight; // Simple top-to-bottom
+            const y = index * barHeight;
             
             ctx.fillRect(x, y, barWidth, barHeight);
         });

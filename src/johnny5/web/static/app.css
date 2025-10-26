@@ -78,7 +78,6 @@ body {
 #y-density {
     grid-row: 2 / 3; grid-column: 1 / 2;
     background-color: #2e8b57;
-    writing-mode: vertical-rl;
     position: relative;
     overflow-y: auto;
     overflow-x: hidden;
@@ -86,6 +85,7 @@ body {
     display: flex;
     flex-direction: column;
     padding: 5px; /* Match PDF container padding */
+    align-items: flex-start; /* Left-align canvas content */
     /* Hide scrollbar but keep functionality */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
