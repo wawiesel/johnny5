@@ -190,6 +190,7 @@ The PDF viewer and reconstructed content are the **primary focus** - they should
 
 Here is a wireframe with the components.
 
+
 ```html
 <!DOCTYPE html>
 <html lang="en">

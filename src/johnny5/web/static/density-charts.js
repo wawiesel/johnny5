@@ -155,41 +155,96 @@ class DensityCharts {
 
         if (globalMaxValue === 0) return; // No data
 
-        // Loop through each page and create a matching canvas
+        // Wait for PDF to fully render and get actual scrollHeight
+        const pdfScroller = document.getElementById('pdf-scroller');
+        await new Promise(resolve => requestAnimationFrame(() => resolve()));
+        
+        // Get the ACTUAL scrollable height from the PDF scroller
+        const totalPdfHeight = pdfScroller.scrollHeight;
+        const parentWidth = yDensityScroller.offsetWidth;
+        
+        if (totalPdfHeight <= 0 || parentWidth <= 0) return;
+        
+        console.log(`[renderStaticCharts] PDF scrollHeight=${totalPdfHeight}, parentWidth=${parentWidth}`);
+        
+        // --- Create SINGLE LEFT Y-Density Canvas for entire document ---
+        const canvas = document.createElement('canvas');
+        canvas.style.width = '100%';
+        canvas.style.height = `${totalPdfHeight}px`;
+        yDensityScroller.appendChild(canvas);
+        
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio;
+        canvas.width = parentWidth * dpr;
+        canvas.height = totalPdfHeight * dpr;
+        ctx.scale(dpr, dpr);
+        
+        // Draw density bars and page breaks by accumulating actual heights
+        let currentY = 0;
         for (let i = 0; i < pageWrappers.length; i++) {
             const wrapper = pageWrappers[i];
             const pageNum = parseInt(wrapper.dataset.pageNum, 10);
             const pageData = this.viewer.allDensityData[pageNum];
             const data = (pageData && pageData.y) ? pageData.y : [];
             
-            // Calculate the height using the same logic as the PDF renderer
-            const page = await this.viewer.pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale: this.viewer.scale });
-            const pageHeight = Math.floor(viewport.height);
-
-            if (pageHeight <= 0) continue;
+            // Get ACTUAL page height from the DOM
+            const actualPageHeight = wrapper.offsetHeight;
             
-            const marginBottom = parseInt(window.getComputedStyle(wrapper).marginBottom) || 5;
-
-            // --- 1. Create LEFT Y-Density Canvas for this page ---
-            const canvas = document.createElement('canvas');
-            canvas.style.width = '100%';
-            canvas.style.height = `${pageHeight}px`;
-            canvas.style.display = 'block';
-            canvas.style.marginBottom = `${marginBottom}px`;
+            if (data.length > 0 && actualPageHeight > 0) {
+                const barHeight = actualPageHeight / data.length;
+                ctx.fillStyle = '#4CAF50';
+                
+                data.forEach((value, index) => {
+                    const barWidth = (value / globalMaxValue) * parentWidth;
+                    ctx.fillRect(parentWidth - barWidth, currentY + (index * barHeight), barWidth, barHeight);
+                });
+            }
             
-            yDensityScroller.appendChild(canvas);
-            this.renderPageDensityChart(canvas, data, globalMaxValue, pageHeight, '#4CAF50');
-
-            // --- 2. Create RIGHT Y-Density Canvas for this page ---
-            const rightCanvas = document.createElement('canvas');
-            rightCanvas.style.width = '100%';
-            rightCanvas.style.height = `${pageHeight}px`;
-            rightCanvas.style.display = 'block';
-            rightCanvas.style.marginBottom = `${marginBottom}px`;
+            // Draw page break line (except after last page)
+            if (i < pageWrappers.length - 1) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, currentY + actualPageHeight);
+                ctx.lineTo(parentWidth, currentY + actualPageHeight);
+                ctx.stroke();
+            }
             
-            yDensityRight.appendChild(rightCanvas);
-            this.renderPageDensityChart(rightCanvas, data, globalMaxValue, pageHeight, '#2196F3');
+            currentY += actualPageHeight;
+        }
+        
+        // --- Create SINGLE RIGHT Y-Density Canvas for entire document ---
+        const rightCanvas = document.createElement('canvas');
+        rightCanvas.style.width = '100%';
+        rightCanvas.style.height = `${totalPdfHeight}px`;
+        yDensityRight.appendChild(rightCanvas);
+        
+        const rightCtx = rightCanvas.getContext('2d');
+        rightCanvas.width = parentWidth * dpr;
+        rightCanvas.height = totalPdfHeight * dpr;
+        rightCtx.scale(dpr, dpr);
+        
+        // Draw for right canvas
+        currentY = 0;
+        for (let i = 0; i < pageWrappers.length; i++) {
+            const wrapper = pageWrappers[i];
+            const pageNum = parseInt(wrapper.dataset.pageNum, 10);
+            const pageData = this.viewer.allDensityData[pageNum];
+            const data = (pageData && pageData.y) ? pageData.y : [];
+            
+            const actualPageHeight = wrapper.offsetHeight;
+            
+            if (data.length > 0 && actualPageHeight > 0) {
+                const barHeight = actualPageHeight / data.length;
+                rightCtx.fillStyle = '#2196F3';
+                
+                data.forEach((value, index) => {
+                    const barWidth = (value / globalMaxValue) * parentWidth;
+                    rightCtx.fillRect(parentWidth - barWidth, currentY + (index * barHeight), barWidth, barHeight);
+                });
+            }
+            
+            currentY += actualPageHeight;
         }
     }
 
