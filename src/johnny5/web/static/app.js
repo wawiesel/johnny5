@@ -127,6 +127,9 @@ class Johnny5Viewer {
         // Label toggle controls
         document.getElementById('select-all-labels').addEventListener('click', () => this.selectAllLabels());
         document.getElementById('deselect-all-labels').addEventListener('click', () => this.deselectAllLabels());
+
+        // Keep left ruler style in lockstep with viewer styles (no CSS duplication)
+        this.setupRulerStyleSync();
     }
 
     connectWebSocket() {
@@ -598,6 +601,64 @@ class Johnny5Viewer {
         this.updateZoomInfo();
     }
 
+    // Observe style/layout changes to mirror gaps/background to the left ruler via logic
+    setupRulerStyleSync() {
+        const container = document.getElementById('pdf-canvas-container');
+        const scroller  = document.getElementById('pdf-scroller');
+        if (!container || !scroller) return;
+
+        const refresh = () => {
+            // Recompute padding/background and per-page gaps
+            this.drawLeftPanelRuler();
+        };
+
+        // Observe container style/class changes
+        try {
+            this._rulerContainerObserver?.disconnect?.();
+        } catch {}
+        if (window.MutationObserver) {
+            const containerObserver = new window.MutationObserver(refresh);
+            containerObserver.observe(container, { attributes: true, attributeFilter: ['style', 'class'] });
+            this._rulerContainerObserver = containerObserver;
+        }
+
+        // Observe page wrapper additions/removals, and watch each wrapper's style/class
+        try {
+            this._rulerListObserver?.disconnect?.();
+        } catch {}
+        const observeWrappers = () => {
+            container.querySelectorAll('.pdf-page-wrapper').forEach(wrapper => {
+                if (wrapper._rulerObserverAttached) return;
+                if (window.MutationObserver) {
+                    const o = new window.MutationObserver(refresh);
+                    o.observe(wrapper, { attributes: true, attributeFilter: ['style', 'class'] });
+                    wrapper._rulerObserverAttached = true;
+                    wrapper._rulerObserver = o;
+                }
+            });
+        };
+        observeWrappers();
+        if (window.MutationObserver) {
+            const listObserver = new window.MutationObserver(() => {
+                observeWrappers();
+                refresh();
+            });
+            listObserver.observe(container, { childList: true });
+            this._rulerListObserver = listObserver;
+        }
+
+        // Observe layout/size changes for container/scroller
+        if (window.ResizeObserver) {
+            try {
+                this._rulerResizeObserver?.disconnect?.();
+            } catch {}
+            const ro = new window.ResizeObserver(() => refresh());
+            ro.observe(container);
+            ro.observe(scroller);
+            this._rulerResizeObserver = ro;
+        }
+    }
+
     updatePageInfo() {
         document.getElementById('page-info').textContent = `Page ${this.currentPage} of ${this.totalPages}`;
     }
@@ -611,163 +672,220 @@ class Johnny5Viewer {
         document.getElementById('zoom-level').textContent = `${Math.round(this.scale * 100)}%`;
     }
 
-    async drawPdfGrid() {
-        const scroller = document.getElementById('pdf-scroller');
-        const container = document.getElementById('pdf-canvas-container');
-        if (!scroller || !container || !this.pdfDoc) return;
-    
-        let gridCanvas = document.getElementById('pdf-grid');
-        if (!gridCanvas) {
-            gridCanvas = document.createElement('canvas');
-            gridCanvas.id = 'pdf-grid';
-            scroller.appendChild(gridCanvas);
-        }
-    
-        const width = container.scrollWidth;
-        const height = container.scrollHeight || container.offsetHeight;
-        const dpr = window.devicePixelRatio || 1;
-    
-        gridCanvas.style.width = `${width}px`;
-        gridCanvas.style.height = `${height}px`;
-        gridCanvas.width = Math.floor(width * dpr);
-        gridCanvas.height = Math.floor(height * dpr);
-    
-        const ctx = gridCanvas.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, width, height);
+    // Shared helpers for grid/ruler coordinate math
+    _getWrapperOffset(wrapper, scroller) {
+        const wr = wrapper.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        return {
+            x: (wr.left - sr.left) + scroller.scrollLeft,
+            y: (wr.top  - sr.top)  + scroller.scrollTop,
+        };
+    }
 
-        // Use scroller-relative coordinates to avoid padding mismatches
-        const scrollerRect = scroller.getBoundingClientRect();
-    
-        const pageWrappers = container.querySelectorAll('.pdf-page-wrapper');
-        const pdfStep = 15;
-    
-        for (const wrapper of pageWrappers) {
-            const pageNum = +wrapper.dataset.pageNum;
-            const page = await this.pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale: this.scale });
-    
-            // PDF-space bounds
-            const [pageWidth, pageHeight] = page.view.slice(2); // PDF user-space size
+    _pdfToScroller(viewport, off, xPdf, yPdf) {
+        const [vx, vy] = viewport.convertToViewportPoint(xPdf, yPdf);
+        return { x: off.x + vx, y: off.y + vy };
+    }
 
-            // Map PDF-space points; we'll correct Y to DOM space using viewport.height
-            const [x0, y0] = viewport.convertToViewportPoint(0, 0);
-            const [x1,] = viewport.convertToViewportPoint(pageWidth, 0);
-            const [, y1] = viewport.convertToViewportPoint(0, pageHeight);
-                
-            // Translate into scroll-space via DOM rects (no padding assumptions)
-            const wrapperRect = wrapper.getBoundingClientRect();
-            const offsetX = (wrapperRect.left - scrollerRect.left) + scroller.scrollLeft;
-            const offsetY = (wrapperRect.top  - scrollerRect.top)  + scroller.scrollTop;
+    _snapX(x) { return Math.floor(x) + 0.5; }
+    _snapY(y) { return Math.floor(y) + 0.5; }
 
+  async drawPdfGrid() {
+    const scroller  = document.getElementById('pdf-scroller');
+    const container = document.getElementById('pdf-canvas-container');
+    if (!scroller || !container || !this.pdfDoc) return;
+  
+    let gridCanvas = document.getElementById('pdf-grid');
+    if (!gridCanvas) {
+      gridCanvas = document.createElement('canvas');
+      gridCanvas.id = 'pdf-grid';
+      scroller.appendChild(gridCanvas);
+    }
+    const width  = container.scrollWidth;
+    const height = container.scrollHeight || container.offsetHeight;
+    const dpr = window.devicePixelRatio || 1;
+  
+    gridCanvas.style.width  = `${width}px`;
+    gridCanvas.style.height = `${height}px`;
+    gridCanvas.width  = Math.floor(width  * dpr);
+    gridCanvas.height = Math.floor(height * dpr);
+  
+    const ctx = gridCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        ctx.lineWidth = 0.5;
+  
+    const pdfStep = 15;
+    const wrappers = container.querySelectorAll('.pdf-page-wrapper');
+  
+    for (const wrapper of wrappers) {
+      const pageNum = +wrapper.dataset.pageNum;
+      const page = await this.pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: this.scale });
+  
+      const [x0, y0, x1, y1] = page.view;
+      const pageWidth  = x1 - x0;
+      const pageHeight = y1 - y0;
+  
+            const off = this._getWrapperOffset(wrapper, scroller);
+  
+            // --- Draw grid lines (ensure style is reset for each page) ---
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             ctx.lineWidth = 0.5;
-            // ---- horizontal lines (constant yPDF) ----
-            for (let yPdf = 0; yPdf <= pageHeight; yPdf += pdfStep) {
-                const [xH0, yL] = viewport.convertToViewportPoint(0, yPdf);
-                const [xH1] = viewport.convertToViewportPoint(pageWidth, yPdf);
-                ctx.beginPath();
-                ctx.moveTo(offsetX + xH0, offsetY + yL);
-                ctx.lineTo(offsetX + xH1, offsetY + yL);
-                ctx.stroke();
-            }
-        
-            // ---- vertical lines (constant xPDF) ----
-            for (let xPdf = 0; xPdf <= pageWidth; xPdf += pdfStep) {
-                const [xL, yV0] = viewport.convertToViewportPoint(xPdf, 0);
-                const [, yV1] = viewport.convertToViewportPoint(xPdf, pageHeight);
-                ctx.beginPath();
-                ctx.moveTo(offsetX + xL, offsetY + yV0);
-                ctx.lineTo(offsetX + xL, offsetY + yV1);
-                ctx.stroke();
-            }
-
-            // Draw axes last so they appear above grid
-            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
-            ctx.lineWidth = 1.5;
-
-            const [xStep, yStep] = viewport.convertToViewportPoint(pdfStep, pdfStep);
-            
-            /* origin */
-            ctx.beginPath();
-            ctx.moveTo(offsetX + x0, offsetY + y0);
-            ctx.lineTo(offsetX + xStep, offsetY + yStep);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(offsetX + x0, offsetY + y0);
-            ctx.lineTo(offsetX + x1, offsetY + y0);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(offsetX + x0, offsetY + y0);
-            ctx.lineTo(offsetX + x0, offsetY + y1);
-            ctx.stroke();
-        }
-    }
-    
-
-    async drawLeftPanelRuler() {
-        const yPanel   = document.getElementById('y-density');
-        const scroller = document.getElementById('pdf-scroller');
-        const container = document.getElementById('pdf-canvas-container');
-        if (!yPanel || !scroller || !container || !this.pdfDoc) return;
-      
-        // Clear existing ruler canvases
-        yPanel.innerHTML = '';
-      
-        const pdfStep = 15; // PDF units
-        const panelWidth = Math.max(36, yPanel.clientWidth || 36);
-        const dpr = window.devicePixelRatio || 1;
-        const pages = container.querySelectorAll('.pdf-page-wrapper');
-      
-        for (const wrapper of pages) {
-          const pageNum = +wrapper.dataset.pageNum;
-          const page = await this.pdfDoc.getPage(pageNum);
-          const viewport = page.getViewport({ scale: this.scale });
-          const [, , , pageHeight] = page.view; // PDF-space height
-      
-          // Per-page ruler canvas
-          const seg = document.createElement('canvas');
-          seg.width  = Math.floor(panelWidth * dpr);
-          seg.height = Math.floor(viewport.height * dpr);
-          seg.style.width  = `${panelWidth}px`;
-          seg.style.height = `${viewport.height}px`;
-          seg.style.display = 'block';
-          // match vertical gap between pages
-          seg.style.marginBottom = getComputedStyle(wrapper).marginBottom;
-          yPanel.appendChild(seg);
-      
-          const ctx = seg.getContext('2d');
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          ctx.clearRect(0, 0, panelWidth, viewport.height);
-          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-          ctx.lineWidth = 1;
-      
-          // Draw horizontal lines in true PDF coordinates
-          for (let yPdf = 0; yPdf <= pageHeight + 1e-6; yPdf += pdfStep) {
-            const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
-            ctx.beginPath();
-            ctx.moveTo(0, yLocal);
-            ctx.lineTo(panelWidth, yLocal);
-            ctx.stroke();
-          }
-        }
-      
-        // --- Scroll sync with main scroller ---
-        if (!this._rulerScrollHandler) {
-          this._rulerScrollHandler = () => {
-            yPanel.scrollTop = scroller.scrollTop;
-          };
-          scroller.addEventListener('scroll', this._rulerScrollHandler);
-        }
-        yPanel.scrollTop = scroller.scrollTop;
+      // horizontal
+      for (let yPdf = 0; yPdf <= pageHeight + 1e-6; yPdf += pdfStep) {
+                const p0 = this._pdfToScroller(viewport, off, 0, yPdf);
+                const p1 = this._pdfToScroller(viewport, off, pageWidth, yPdf);
+        ctx.beginPath();
+                ctx.moveTo(this._snapX(p0.x), this._snapY(p0.y));
+                ctx.lineTo(this._snapX(p1.x), this._snapY(p1.y));
+        ctx.stroke();
       }
-      
-      
-
-      
-    
-
+  
+      // vertical
+      for (let xPdf = 0; xPdf <= pageWidth + 1e-6; xPdf += pdfStep) {
+                const p0 = this._pdfToScroller(viewport, off, xPdf, 0);
+                const p1 = this._pdfToScroller(viewport, off, xPdf, pageHeight);
+        ctx.beginPath();
+                ctx.moveTo(this._snapX(p0.x), this._snapY(p0.y));
+                ctx.lineTo(this._snapX(p1.x), this._snapY(p1.y));
+        ctx.stroke();
+      }
+  
+      // --- Axes (red) ---
+      ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+      ctx.lineWidth = 1.5;
+  
+      // X-axis (PDF y=0)
+            const pX0 = this._pdfToScroller(viewport, off, 0, 0);
+            const pX1 = this._pdfToScroller(viewport, off, pageWidth, 0);
+      ctx.beginPath();
+            ctx.moveTo(this._snapX(pX0.x), this._snapY(pX0.y));
+            ctx.lineTo(this._snapX(pX1.x), this._snapY(pX1.y));
+      ctx.stroke();
+  
+      // Y-axis (PDF x=0)
+            const pY0 = this._pdfToScroller(viewport, off, 0, 0);
+            const pY1 = this._pdfToScroller(viewport, off, 0, pageHeight);
+      ctx.beginPath();
+            ctx.moveTo(this._snapX(pY0.x), this._snapY(pY0.y));
+            ctx.lineTo(this._snapX(pY1.x), this._snapY(pY1.y));
+      ctx.stroke();
+  
+            // No extra reference lines
+    }
+  }
+  
+  async drawLeftPanelRuler() {
+    const yPanel   = document.getElementById('y-density');
+    const scroller = document.getElementById('pdf-scroller');
+    const container = document.getElementById('pdf-canvas-container');
+    if (!yPanel || !scroller || !container || !this.pdfDoc) return;
+  
+    yPanel.innerHTML = '';
+  
+    const cs = getComputedStyle(container);
+    const padColor = cs.backgroundColor || 'rgb(214,153,218)';
+    const dpr = window.devicePixelRatio || 1;
+    const pdfStep = 15;
+    const panelWidth = Math.max(36, yPanel.clientWidth || 36);
+  
+    const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
+    if (wrappers.length === 0) return;
+  
+    // Build a measured model of the scroll content
+    const items = [];
+    const getY = (w) => this._getWrapperOffset(w, scroller).y;
+  
+    // Top gap (includes container top padding)
+    const firstTop = Math.round(getY(wrappers[0]));
+    if (firstTop > 0) items.push({ type: 'gap', h: firstTop });
+  
+    for (let i = 0; i < wrappers.length; i++) {
+      const w = wrappers[i];
+      const pageNum = +w.dataset.pageNum;
+      const canvas = w.querySelector('canvas');
+      const hCss = canvas ? Math.round(canvas.getBoundingClientRect().height) : Math.round(w.offsetHeight);
+      const top = Math.round(getY(w));
+      const bottom = top + hCss;
+  
+      items.push({ type: 'page', h: hCss, pageNum });
+  
+      // Gap to next page, or trailing bottom gap to end of content
+      const nextTop = (i + 1 < wrappers.length) ? Math.round(getY(wrappers[i + 1])) : null;
+      const gapH = nextTop !== null
+        ? Math.max(0, nextTop - bottom)                                 // collapsed inter-page margin
+        : Math.max(0, Math.round(container.scrollHeight) - bottom);     // bottom padding / tail
+      if (gapH > 0) items.push({ type: 'gap', h: gapH });
+    }
+  
+    // Paint the stack
+    const stack = document.createElement('div');
+    stack.style.display = 'block';
+    stack.style.width = '100%';
+    yPanel.appendChild(stack);
+  
+    for (const it of items) {
+      if (it.type === 'gap') {
+        const gap = document.createElement('div');
+        gap.style.height = `${it.h}px`;
+        gap.style.background = padColor;        // pink
+        stack.appendChild(gap);
+        continue;
+      }
+  
+      // Page segment
+      const seg = document.createElement('canvas');
+      seg.style.display = 'block';
+      seg.style.width = '100%';
+      seg.style.height = `${it.h}px`;
+      seg.width  = Math.floor(panelWidth * dpr);
+      seg.height = Math.floor(it.h * dpr);
+      stack.appendChild(seg);
+  
+      const ctx = seg.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, panelWidth, it.h);
+  
+      // Draw grid using the actual PDF→viewport map
+      const page = await this.pdfDoc.getPage(it.pageNum);
+      const viewport = page.getViewport({ scale: this.scale });
+      const [, y0, , y1] = page.view;
+      const pageHeightPdf = y1 - y0;
+  
+      // gray lines every 15 PDF units
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      for (let yPdf = 0; yPdf <= pageHeightPdf + 1e-6; yPdf += pdfStep) {
+        const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
+        const y = Math.floor(yLocal) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(panelWidth, y);
+        ctx.stroke();
+      }
+  
+      // red origin
+      ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+      ctx.lineWidth = 1.5;
+      const [, yOrigin] = viewport.convertToViewportPoint(0, 0);
+      const y0px = Math.floor(yOrigin) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, y0px);
+      ctx.lineTo(panelWidth, y0px);
+      ctx.stroke();
+    }
+  
+    // Scroll sync
+    if (!this._rulerScrollHandler) {
+      this._rulerScrollHandler = () => { yPanel.scrollTop = scroller.scrollTop; };
+      scroller.addEventListener('scroll', this._rulerScrollHandler);
+    }
+    yPanel.scrollTop = scroller.scrollTop;
+  }
+  
+  
 
     addLogEntry(pane, message, level = 'info') {
         const logContent = document.getElementById(`${pane}-log-content`);
