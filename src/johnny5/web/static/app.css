@@ -79,16 +79,20 @@ body {
     grid-row: 2 / 3; grid-column: 1 / 2;
     background-color: #2e8b57;
     position: relative;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: auto; /* Must be scrollable */
     height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 5px; /* Match PDF container padding */
-    align-items: flex-start; /* Left-align canvas content */
+    display: block; /* no flex; no alignment games */
+    padding: 0;     /* critical: no padding or you’ll be offset */
     /* Hide scrollbar but keep functionality */
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Ensure the ruler canvas doesn’t shrink in a flex context anywhere */
+#y-density > canvas {
+    display: block;
+    width: 100%;
+    flex: none;
 }
 
 /* Hide scrollbar for WebKit browsers (Chrome, Safari) */
