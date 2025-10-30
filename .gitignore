@@ -27,7 +27,7 @@ share/python-wheels/
 MANIFEST
 node_modules
 playwright-report
-
+**/.wkso
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
