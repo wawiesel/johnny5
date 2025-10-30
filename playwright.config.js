@@ -17,8 +17,8 @@ module.exports = defineConfig({
     headless: true,
   },
   webServer: {
-    // Use the venv uvicorn if present; otherwise rely on system uvicorn
-    command: './venv/bin/uvicorn src.johnny5.server:app --host 127.0.0.1 --port 5173',
+    // Start ASGI app that exposes FastAPI instance for tests
+    command: './venv/bin/uvicorn src.johnny5.asgi:app --host 127.0.0.1 --port 5173',
     url: 'http://127.0.0.1:5173/',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

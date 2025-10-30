@@ -130,7 +130,7 @@ class Johnny5Viewer {
 
         // Options: PDF grid step control (live-updatable)
         try {
-            const optionsPanel = document.getElementById('options');
+            const optionsPanel = document.getElementById('pdf-options');
             if (optionsPanel) {
                 const group = document.createElement('div');
                 group.className = 'control-group';
@@ -206,6 +206,11 @@ class Johnny5Viewer {
                 // Still ensure centering/margins applied
                 await this.renderAllPages();
             }
+            // Redraw rulers on resize in case only container size changed
+            try {
+                await this.drawTopPanelRuler();
+                await this.drawRightLabelBar();
+            } catch {}
         });
     }
 
@@ -560,15 +565,22 @@ class Johnny5Viewer {
 
             // Lock panel height to scroller viewport before drawing
             const scroller = document.getElementById('pdf-scroller');
-            const yPanel = document.getElementById('y-density');
+            const yPanel = document.getElementById('pdf-y-density');
             if (yPanel && scroller) {
                 yPanel.style.height = scroller.clientHeight + 'px';
+            }
+            const yRightPanel = document.getElementById('pdf-annotations');
+            if (yRightPanel && scroller) {
+                yRightPanel.style.height = scroller.clientHeight + 'px';
             }
 
             // Draw verification grid overlay aligned to PDF scroll space
             await this.drawPdfGrid();
             // Draw left ruler inside the y-density panel aligned to PDF coordinates
             await this.drawLeftPanelRuler();
+            // Draw top ruler and right label bar
+            await this.drawTopPanelRuler();
+            await this.drawRightLabelBar();
         } catch (error) {
             console.error('Error rendering pages:', error);
             this.addLogEntry('left', `Error rendering pages: ${error.message}`, 'error');
@@ -703,6 +715,8 @@ class Johnny5Viewer {
         const refresh = () => {
             // Recompute padding/background and per-page gaps
             this.drawLeftPanelRuler();
+            this.drawTopPanelRuler();
+            this.drawRightLabelBar();
         };
 
         // Observe container style/class changes
@@ -871,12 +885,15 @@ class Johnny5Viewer {
   }
   
   async drawLeftPanelRuler() {
-    const yPanel   = document.getElementById('y-density');
+    const yPanel   = document.getElementById('pdf-y-density');
     const scroller = document.getElementById('pdf-scroller');
     const container = document.getElementById('pdf-canvas-container');
     if (!yPanel || !scroller || !container || !this.pdfDoc) return;
   
     yPanel.innerHTML = '';
+    yPanel.style.overflowY = 'hidden';
+    yPanel.style.display = 'block';
+    yPanel.style.background = '#fff';
   
     const cs = getComputedStyle(container);
     const padColor = cs.backgroundColor || 'rgb(214,153,218)';
@@ -976,8 +993,205 @@ class Johnny5Viewer {
       scroller.addEventListener('scroll', this._rulerScrollHandler);
     }
     yPanel.scrollTop = scroller.scrollTop;
+    try { console.log('[ruler] left drawn'); } catch {}
   }
   
+  async drawTopPanelRuler() {
+    const xPanel   = document.getElementById('pdf-x-density');
+    const scroller = document.getElementById('pdf-scroller');
+    const container = document.getElementById('pdf-canvas-container');
+    if (!xPanel || !scroller || !container || !this.pdfDoc) return;
+
+    xPanel.innerHTML = '';
+    // Disable native user scrolling; mirror from main scroller
+    xPanel.style.overflowX = 'hidden';
+    xPanel.style.background = '#fff';
+
+    const dpr = window.devicePixelRatio || 1;
+    const firstWrapper = container.querySelector('.pdf-page-wrapper');
+    if (!firstWrapper) return;
+    const off = this._getWrapperOffset(firstWrapper, scroller);
+    const firstCanvas = firstWrapper.querySelector('canvas');
+    const pageCssWidth = firstCanvas
+      ? Math.round(firstCanvas.getBoundingClientRect().width)
+      : Math.round(firstWrapper.offsetWidth);
+    const totalWidth = Math.round(container.scrollWidth);
+    const leftGapW = Math.max(0, Math.round(off.x));
+    const rightGapW = Math.max(0, totalWidth - leftGapW - pageCssWidth);
+
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.width = totalWidth + 'px';
+    row.style.height = '100%';
+    xPanel.appendChild(row);
+
+    if (leftGapW > 0) {
+      const leftGap = document.createElement('div');
+      leftGap.style.width = leftGapW + 'px';
+      leftGap.style.height = '100%';
+      leftGap.style.background = getComputedStyle(container).backgroundColor || 'rgb(214,153,218)';
+      row.appendChild(leftGap);
+    }
+
+    const segHeight = Math.max(36, xPanel.clientHeight || 36);
+    const seg = document.createElement('canvas');
+    seg.style.display = 'block';
+    seg.style.width = pageCssWidth + 'px';
+    seg.style.height = segHeight + 'px';
+    seg.width  = Math.floor(pageCssWidth * dpr);
+    seg.height = Math.floor(segHeight * dpr);
+    row.appendChild(seg);
+
+    const ctx = seg.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, pageCssWidth, segHeight);
+
+    const page = await this.pdfDoc.getPage(1);
+    const viewport = page.getViewport({ scale: this.scale });
+    const [x0, , x1] = [page.view[0], page.view[1], page.view[2]];
+    const pageWidthPdf = x1 - x0;
+    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1;
+    for (let xPdf = 0; xPdf <= pageWidthPdf + 1e-6; xPdf += pdfStep) {
+      const [xLocal] = viewport.convertToViewportPoint(xPdf, 0);
+      const x = Math.floor(xLocal) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, segHeight);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+    ctx.lineWidth = 1.5;
+    const [xOrigin] = viewport.convertToViewportPoint(0, 0);
+    const x0px = Math.floor(xOrigin) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x0px, 0);
+    ctx.lineTo(x0px, segHeight);
+    ctx.stroke();
+
+    if (rightGapW > 0) {
+      const rightGap = document.createElement('div');
+      rightGap.style.flex = '0 0 ' + rightGapW + 'px';
+      rightGap.style.height = '100%';
+      rightGap.style.background = getComputedStyle(container).backgroundColor || 'rgb(214,153,218)';
+      row.appendChild(rightGap);
+    }
+
+    if (!this._rulerXScrollHandler) {
+      this._rulerXScrollHandler = () => { xPanel.scrollLeft = scroller.scrollLeft; };
+      scroller.addEventListener('scroll', this._rulerXScrollHandler);
+    }
+    xPanel.scrollLeft = scroller.scrollLeft;
+    try { console.log('[ruler] top drawn'); } catch {}
+  }
+
+  async drawRightLabelBar() {
+    const yRight = document.getElementById('pdf-annotations');
+    const scroller = document.getElementById('pdf-scroller');
+    const container = document.getElementById('pdf-canvas-container');
+    if (!yRight || !scroller || !container || !this.pdfDoc) return;
+
+    yRight.innerHTML = '';
+    // Disable user scroll; follow main scroller only
+    yRight.style.overflowY = 'hidden';
+    yRight.style.background = '#fff';
+    yRight.style.display = 'block';
+
+    const cs = getComputedStyle(container);
+    const padColor = cs.backgroundColor || 'rgb(214,153,218)';
+    const dpr = window.devicePixelRatio || 1;
+    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+    const panelWidth = Math.max(36, yRight.clientWidth || 36);
+
+    const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
+    if (wrappers.length === 0) return;
+
+    const items = [];
+    const getY = (w) => this._getWrapperOffset(w, scroller).y;
+
+    const firstTop = Math.round(getY(wrappers[0]));
+    if (firstTop > 0) items.push({ type: 'gap', h: firstTop });
+
+    for (let i = 0; i < wrappers.length; i++) {
+      const w = wrappers[i];
+      const pageNum = +w.dataset.pageNum;
+      const canvas = w.querySelector('canvas');
+      const hCss = canvas ? Math.round(canvas.getBoundingClientRect().height) : Math.round(w.offsetHeight);
+      const top = Math.round(getY(w));
+      const bottom = top + hCss;
+
+      items.push({ type: 'page', h: hCss, pageNum });
+
+      const nextTop = (i + 1 < wrappers.length) ? Math.round(getY(wrappers[i + 1])) : null;
+      const gapH = nextTop !== null
+        ? Math.max(0, nextTop - bottom)
+        : Math.max(0, Math.round(container.scrollHeight) - bottom);
+      if (gapH > 0) items.push({ type: 'gap', h: gapH });
+    }
+
+    const stack = document.createElement('div');
+    stack.style.display = 'block';
+    stack.style.width = '100%';
+    yRight.appendChild(stack);
+
+    for (const it of items) {
+      if (it.type === 'gap') {
+        const gap = document.createElement('div');
+        gap.style.height = `${it.h}px`;
+        gap.style.background = padColor;
+        stack.appendChild(gap);
+        continue;
+      }
+
+      const seg = document.createElement('canvas');
+      seg.style.display = 'block';
+      seg.style.width = '100%';
+      seg.style.height = `${it.h}px`;
+      seg.width  = Math.floor(panelWidth * dpr);
+      seg.height = Math.floor(it.h * dpr);
+      stack.appendChild(seg);
+
+      const ctx = seg.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, panelWidth, it.h);
+
+      const page = await this.pdfDoc.getPage(it.pageNum);
+      const viewport = page.getViewport({ scale: this.scale });
+      const [, y0, , y1] = page.view;
+      const pageHeightPdf = y1 - y0;
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      for (let yPdf = 0; yPdf <= pageHeightPdf + 1e-6; yPdf += pdfStep) {
+        const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
+        const y = Math.floor(yLocal) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(panelWidth, y);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+      ctx.lineWidth = 1.5;
+      const [, yOrigin] = viewport.convertToViewportPoint(0, 0);
+      const y0px = Math.floor(yOrigin) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, y0px);
+      ctx.lineTo(panelWidth, y0px);
+      ctx.stroke();
+    }
+
+    if (!this._rulerRightScrollHandler) {
+      this._rulerRightScrollHandler = () => { yRight.scrollTop = scroller.scrollTop; };
+      scroller.addEventListener('scroll', this._rulerRightScrollHandler);
+    }
+    yRight.scrollTop = scroller.scrollTop;
+    try { console.log('[ruler] right drawn'); } catch {}
+  }
+
   
 
     addLogEntry(pane, message, level = 'info') {
@@ -1194,7 +1408,7 @@ class Johnny5Viewer {
     
     syncYDensityScroll() {
         const pdfScroller = document.getElementById('pdf-scroller');
-        const yDensity = document.getElementById('y-density');
+        const yDensity = document.getElementById('pdf-y-density');
         
         if (!pdfScroller || !yDensity) return;
         

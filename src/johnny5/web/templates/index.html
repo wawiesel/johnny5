@@ -13,14 +13,14 @@
         <div class="app-container">
             <!-- Image Indicators -->
             <div id="indicator-i" class="box">i</div>
-            <div id="x-density" class="box dark-text">
+            <div id="pdf-x-density" class="box dark-text">
                 <canvas id="x-density-chart"></canvas>
             </div>
             <div id="indicator-d" class="box">d</div>
             <div id="indicator-e" class="box">e</div>
             
             <!-- Left Side Content -->
-            <div id="y-density" class="box">
+            <div id="pdf-y-density" class="box">
                 <!-- Canvases will be created dynamically -->
             </div>
             
@@ -69,14 +69,14 @@
                     </div>
                 </div>
             </div>
-            <div id="annotations" class="box dark-text">
+            <div id="pdf-annotations" class="box dark-text">
                 <div class="annotation-list" id="annotation-list">
                     <!-- Annotations will be populated here -->
                 </div>
             </div>
             
             <!-- Options and Logs -->
-            <div id="options" class="box" style="position: relative;">
+            <div id="pdf-options" class="box" style="position: relative;">
                 <button id="options-toggle" class="options-toggle">▼</button>
                 <div class="options-title">Options</div>
                 <div class="pdf-controls">
@@ -88,7 +88,7 @@
                     </div>
                 </div>
             </div>
-            <div id="log" class="box dark-text" style="position: relative;">
+            <div id="pdf-log" class="box dark-text" style="position: relative;">
                 <button id="log-copy-button" class="log-copy-button">Copy</button>
                 <div class="log-scroll-container">
                     <div class="log-content" id="left-log-content">
@@ -114,20 +114,20 @@
             <div class="center-divider"></div>
 
             <!-- Right Side Content -->
-            <div id="x-density-right" class="box dark-text">
+            <div id="reassembly-x-density" class="box dark-text">
                 <canvas id="x-density-right-chart"></canvas>
             </div>
             <div id="indicator-r" class="box">r</div>
-            <div id="reconstructed" class="box dark-text">
+            <div id="reassembly-viewer" class="box dark-text">
                 <div class="not-implemented">Reconstructed Content</div>
             </div>
-            <div id="y-density-right" class="box dark-text">
+            <div id="reassembly-y-density" class="box dark-text">
                 <!-- Canvases will be created dynamically -->
             </div>
-            <div id="options-right" class="box">
+            <div id="reassembly-options" class="box">
                 <div class="not-implemented">Reconstruct Options</div>
             </div>
-            <div id="log-right" class="box dark-text">
+            <div id="reassembly-log" class="box dark-text">
                 <div class="log-content" id="right-log-content">
                     <div class="log-entry">Waiting for logs...</div>
                 </div>
