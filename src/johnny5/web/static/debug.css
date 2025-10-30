@@ -1,0 +1,29 @@
+/* Debug color theme: enabled when <body class="debug-colors"> */
+
+/* Column tints */
+body.debug-colors #pdf-col { background: rgba(199, 115, 255, 0.10); }
+body.debug-colors #ann-col { background: rgba(76, 175, 80, 0.10); }
+body.debug-colors #rec-col { background: rgba(255, 87, 34, 0.10); }
+
+/* PDF (purple/pink) */
+body.debug-colors #pdf-indicator { background-color: #9c27b0 !important; color: #fff; }
+body.debug-colors #pdf-x-density { background-color: #f3e5f5 !important; }
+body.debug-colors #pdf-y-density { background-color: #f8bbd0 !important; }
+body.debug-colors #pdf-viewer   { background-color: #e1bee7 !important; }
+body.debug-colors #pdf-options  { background-color: #ce93d8 !important; }
+body.debug-colors #pdf-log      { background-color: #f48fb1 !important; }
+
+/* ANN (greens) */
+body.debug-colors #ann-progress { background-color: #c8e6c9 !important; }
+body.debug-colors #ann-list     { background-color: #a5d6a7 !important; }
+body.debug-colors #ann-toggles  { background-color: #81c784 !important; }
+
+/* REC (reds/oranges) */
+body.debug-colors #rec-indicator { background-color: #e64a19 !important; color: #fff; }
+body.debug-colors #rec-x-density { background-color: #ffe0b2 !important; }
+body.debug-colors #rec-y-density { background-color: #ffccbc !important; }
+body.debug-colors #rec-viewer    { background-color: #ffab91 !important; }
+body.debug-colors #rec-options   { background-color: #ffcc80 !important; }
+body.debug-colors #rec-log       { background-color: #ffab91 !important; }
+
+

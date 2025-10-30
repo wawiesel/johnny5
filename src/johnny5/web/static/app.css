@@ -105,28 +105,14 @@ body {
 }
 
 /* --- RED HUES - Image Indicators --- */
-#indicator-i,
-#indicator-d,
-#indicator-e,
-#indicator-r {
+#pdf-indicator,
+#rec-indicator {
     background-color: #ff4747;
     cursor: pointer;
     width: var(--topbar-size);
     height: var(--topbar-size);
     justify-self: center;
     align-self: center;
-}
-
-#indicator-d {
-    background-color: #ff6347;
-}
-
-#indicator-e {
-    background-color: #ff7f50;
-}
-
-#indicator-r {
-    background-color: #dc143c;
 }
 
 /* Place indicators within their columns */
@@ -464,10 +450,8 @@ body {
     /* override .box center */
     justify-content: flex-start;
     /* override .box center */
-    resize: vertical;
-    /* CSS-only resize handle (bottom-right) */
-    overflow: auto;
-    /* required for resize to appear */
+    resize: none !important;
+    /* disable native bottom-right handle */
 }
 
 /* Make both logs use the exact same monospace font stack and left alignment */
@@ -504,16 +488,20 @@ body {
 /* Log scrollbars */
 #pdf-col #pdf-log .pdf-log-scroll-container {
     overflow-y: auto;
-    flex: 1 1 auto;           /* fill available height in log panel */
-    display: flex;            /* anchor content to bottom when not overflowing */
+    flex: 1 1 auto;
+    /* fill available height in log panel */
+    display: flex;
+    /* anchor content to bottom when not overflowing */
     flex-direction: column;
     justify-content: flex-end;
 }
 
 #rec-col #rec-log .rec-log-content {
     overflow-y: auto;
-    flex: 1 1 auto;           /* fill available height in log panel */
-    display: flex;            /* anchor content to bottom when not overflowing */
+    flex: 1 1 auto;
+    /* fill available height in log panel */
+    display: flex;
+    /* anchor content to bottom when not overflowing */
     flex-direction: column;
     justify-content: flex-end;
 }
@@ -529,10 +517,15 @@ body {
 /* Tighten spacing between log lines; avoid extra gap after last line */
 .pdf-log-entry,
 .rec-log-entry,
-.log-entry { margin-bottom: 0.2rem; }
-.pdf-log-content > .pdf-log-entry:last-child,
-.rec-log-content > .rec-log-entry:last-child,
-.log-content > .log-entry:last-child { margin-bottom: 0; }
+.log-entry {
+    margin-bottom: 0.2rem;
+}
+
+.pdf-log-content>.pdf-log-entry:last-child,
+.rec-log-content>.rec-log-entry:last-child,
+.log-content>.log-entry:last-child {
+    margin-bottom: 0;
+}
 
 /* Draggable top-edge handle for logs */
 .log-resize-handle,
@@ -561,17 +554,7 @@ body {
     user-select: none;
 }
 
-/* Ann toggles resize handle (top edge) */
-.ann-toggles-resize-handle {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 6px;
-    cursor: ns-resize;
-    z-index: 101;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0));
-}
+/* (duplicate ann-toggles-resize-handle removed) */
 
 /* Right label/annotation rail to the immediate right of the PDF */
 /* Single source of truth: use #annotations as the right rail */
@@ -599,7 +582,8 @@ body {
     flex-direction: column;
     grid-row: 3;
     grid-column: 1;
-    overflow: hidden; /* clip handle background strictly to column */
+    overflow: hidden;
+    /* clip handle background strictly to column */
 }
 
 .label-toggles-container {
@@ -857,38 +841,7 @@ body {
     display: none;
 }
 
-/* Collapsed log panel - always shows at least one line */
-.log-collapsed {
-    height: 25px !important;
-    min-height: 25px !important;
-    max-height: 25px !important;
-    overflow: hidden;
-}
-
-/* In collapsed log, display only the last log entry and keep updating */
-.log-collapsed .log-scroll-container,
-.log-collapsed .pdf-log-scroll-container {
-    padding: 0.2rem 0.5rem;
-}
-
-.log-collapsed .log-content .log-entry,
-.log-collapsed .pdf-log-content .pdf-log-entry {
-    display: none;
-}
-
-.log-collapsed .log-content .log-entry:last-child,
-.log-collapsed .pdf-log-content .pdf-log-entry:last-child {
-    display: block;
-}
-
-/* CSS-only collapse for logs: when checkbox checked, show only last entry */
-#pdf-col #pdf-log .log-cb:checked~.pdf-log-scroll-container .pdf-log-entry:not(:last-child) {
-    display: none;
-}
-
-#rec-col #rec-log .log-cb:checked~.rec-log-content .pdf-log-entry:not(:last-child) {
-    display: none;
-}
+/* (removed CSS-only log collapse; logs are resizable with JS) */
 
 #pdf-options {
     transition: max-height 0.3s ease;
@@ -1067,86 +1020,4 @@ body {
 
 /* Debug color theme: add class="debug-colors" on <body> to enable */
 /* Column tints */
-body.debug-colors #pdf-col {
-    background: rgba(199, 115, 255, 0.10);
-}
-
-/* purple */
-body.debug-colors #ann-col {
-    background: rgba(76, 175, 80, 0.10);
-}
-
-/* green */
-body.debug-colors #rec-col {
-    background: rgba(255, 87, 34, 0.10);
-}
-
-/* orange */
-
-/* PDF column panels */
-/* PDF (purple/pink) */
-body.debug-colors #pdf-indicator {
-    background-color: #9c27b0 !important;
-    color: #fff;
-}
-
-body.debug-colors #pdf-x-density {
-    background-color: #f3e5f5 !important;
-}
-
-body.debug-colors #pdf-y-density {
-    background-color: #f8bbd0 !important;
-}
-
-body.debug-colors #pdf-viewer {
-    background-color: #e1bee7 !important;
-}
-
-body.debug-colors #pdf-options {
-    background-color: #ce93d8 !important;
-}
-
-body.debug-colors #pdf-log {
-    background-color: #f48fb1 !important;
-}
-
-/* Annotations column panels */
-/* ANN (greens) */
-body.debug-colors #ann-progress {
-    background-color: #c8e6c9 !important;
-}
-
-body.debug-colors #ann-list {
-    background-color: #a5d6a7 !important;
-}
-
-body.debug-colors #ann-toggles {
-    background-color: #81c784 !important;
-}
-
-/* Reconstruction column panels */
-/* REC (reds/oranges) */
-body.debug-colors #rec-indicator {
-    background-color: #e64a19 !important;
-    color: #fff;
-}
-
-body.debug-colors #rec-x-density {
-    background-color: #ffe0b2 !important;
-}
-
-body.debug-colors #rec-y-density {
-    background-color: #ffccbc !important;
-}
-
-body.debug-colors #rec-viewer {
-    background-color: #ffab91 !important;
-}
-
-body.debug-colors #rec-options {
-    background-color: #ffcc80 !important;
-}
-
-body.debug-colors #rec-log {
-    background-color: #ffab91 !important;
-}
+/* debug colors moved to debug.css */
