@@ -23,12 +23,11 @@ body {
     width: 100vw;
     /* unify top row height via a variable so indicators can be perfect squares */
     --topbar-size: 40px;
-    grid-template-columns: var(--topbar-size) 1fr var(--topbar-size) var(--topbar-size) 2px 1fr var(--topbar-size);
-    grid-template-rows: var(--topbar-size) 1fr 80px 100px;
-    /* Remove horizontal gaps to avoid black borders flanking indicators */
-    row-gap: 1px;
-    column-gap: 0;
-    background-color: #000;
+    grid-template-columns: minmax(0, 1fr) 12ch minmax(0, 1fr) !important;
+    /* pdf | annotations (≈20 chars) | reconstruction */
+    grid-template-rows: 100%;
+    gap: 0;
+    background-color: transparent;
 }
 
 /* Helper class for all boxes */
@@ -45,12 +44,73 @@ body {
     color: #333;
 }
 
+/* --- COLUMN WRAPPERS --- */
+#pdf-col {
+    grid-column: 1 / 2;
+    display: grid;
+    height: 100%;
+    grid-template-columns: var(--topbar-size) 1fr;
+    grid-template-rows: var(--topbar-size) 1fr minmax(25px, auto) minmax(25px, auto);
+    gap: 0;
+    background: transparent;
+}
+
+#ann-col {
+    grid-column: 2 / 3;
+    display: grid;
+    height: 100%;
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-size) 1fr minmax(120px, auto);
+    gap: 0;
+    background: transparent;
+    min-width: 0 !important;
+}
+
+/* Ensure the annotations column cannot exceed its grid track width */
+#ann-col {
+    min-width: 0;
+}
+
+#ann-col>* {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+#ann-col #ann-list,
+#ann-col #ann-toggles {
+    overflow: auto;
+}
+
+#ann-col {
+    align-content: stretch;
+    align-items: stretch;
+}
+
+#ann-col,
+#ann-col * {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+#rec-col {
+    grid-column: 3 / 4;
+    display: grid;
+    height: 100%;
+    grid-template-columns: 1fr var(--topbar-size);
+    grid-template-rows: var(--topbar-size) 1fr minmax(25px, auto) minmax(25px, auto);
+    gap: 0;
+    background: transparent;
+}
+
 /* --- RED HUES - Image Indicators --- */
-#indicator-i {
-    grid-row: 1 / 2; grid-column: 1 / 2;
+#indicator-i,
+#indicator-d,
+#indicator-e,
+#indicator-r {
     background-color: #ff4747;
     cursor: pointer;
-    /* enforce square shape tied to top row height */
     width: var(--topbar-size);
     height: var(--topbar-size);
     justify-self: center;
@@ -58,59 +118,64 @@ body {
 }
 
 #indicator-d {
-    grid-row: 1 / 2; grid-column: 3 / 4;
     background-color: #ff6347;
-    cursor: pointer;
-    width: var(--topbar-size);
-    height: var(--topbar-size);
-    justify-self: center;
-    align-self: center;
 }
 
 #indicator-e {
-    grid-row: 1 / 2; grid-column: 4 / 5;
     background-color: #ff7f50;
-    cursor: pointer;
-    width: var(--topbar-size);
-    height: var(--topbar-size);
-    justify-self: center;
-    align-self: center;
 }
 
 #indicator-r {
-    grid-row: 1 / 2; grid-column: 7 / 8;
     background-color: #dc143c;
-    cursor: pointer;
-    width: var(--topbar-size);
-    height: var(--topbar-size);
-    justify-self: center;
-    align-self: center;
+}
+
+/* Place indicators within their columns */
+#pdf-col #pdf-indicator {
+    grid-row: 1;
+    grid-column: 1;
+}
+
+#ann-col #ann-progress {
+    grid-row: 1;
+    grid-column: 1;
+}
+
+#rec-col #rec-indicator {
+    grid-row: 1;
+    grid-column: 2;
 }
 
 /* --- GREEN/YELLOW HUES - Density Charts --- */
-#pdf-x-density {
-    grid-row: 1 / 2; grid-column: 2 / 3;
+#pdf-col #pdf-x-density {
     background-color: #ffffff;
     position: relative;
     overflow-x: auto;
     overflow-y: hidden;
+    grid-row: 1;
+    grid-column: 2;
 }
 
-#pdf-y-density {
-    grid-row: 2 / 3; grid-column: 1 / 2;
+#pdf-col #pdf-y-density {
     background-color: white;
     position: relative;
-    overflow: hidden; /* ruler follows main scroll */
+    overflow: hidden;
+    /* ruler follows main scroll */
     height: 100%;
-    display: block; /* no flex; no alignment games */
-    padding: 0;     /* critical: no padding or you’ll be offset */
+    display: block;
+    /* no flex; no alignment games */
+    padding: 0;
+    /* critical: no padding or you’ll be offset */
     /* Hide scrollbar but keep functionality */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    grid-row: 2;
+    grid-column: 1;
 }
-  
+
 /* Ensure the ruler canvas doesn’t shrink in a flex context anywhere */
-#pdf-y-density > canvas {
+#pdf-y-density>canvas {
     display: block;
     width: 100%;
     flex: none;
@@ -138,29 +203,40 @@ body {
 
 
 
-#pdf-viewer {
-    grid-row: 2 / 3; grid-column: 2 / 3;
-    background-color: #eaeaea; /* light grey behind scroller */
-    position: relative; /* Anchor for absolutely positioned controls */
+#pdf-col #pdf-viewer {
+    background-color: #eaeaea;
+    /* light grey behind scroller */
+    position: relative;
+    /* Anchor for absolutely positioned controls */
     height: 100%;
-    display: flex; /* Override .box to control flow */
+    display: flex;
+    /* Override .box to control flow */
     flex-direction: column;
+    grid-row: 2;
+    grid-column: 2;
 }
 
 /* PDF Scroller - Handles the actual scrolling */
 #pdf-scroller {
-    position: relative; /* For the canvas container inside */
+    position: relative;
+    /* For the canvas container inside */
     width: 100%;
-    flex-grow: 1; /* Makes it fill all available vertical space */
-    
+    flex-grow: 1;
+    /* Makes it fill all available vertical space */
+
     /* All the scrolling properties moved here */
     overflow: auto;
     scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch; /* iOS smooth scrolling */
-    will-change: scroll-position; /* Optimize for scrolling */
-    max-height: none; /* Remove any height constraints */
-    max-width: none; /* Allow horizontal scrolling */
-    background-color: #f2f2f2; /* light grey behind PDF pages */
+    -webkit-overflow-scrolling: touch;
+    /* iOS smooth scrolling */
+    will-change: scroll-position;
+    /* Optimize for scrolling */
+    max-height: none;
+    /* Remove any height constraints */
+    max-width: none;
+    /* Allow horizontal scrolling */
+    background-color: #f2f2f2;
+    /* light grey behind PDF pages */
 }
 
 /* Grid and overlay layers inside the PDF scroller */
@@ -174,11 +250,13 @@ body {
 }
 
 #pdf-grid {
-    z-index: 2; /* Above canvas, below controls */
+    z-index: 2;
+    /* Above canvas, below controls */
 }
 
 #overlay-container {
-    z-index: 3; /* Annotations above grid */
+    z-index: 3;
+    /* Annotations above grid */
 }
 
 /* Left ruler overlay inside the PDF scroller */
@@ -186,9 +264,11 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    width: 36px; /* display width; backing store set in JS */
+    width: 36px;
+    /* display width; backing store set in JS */
     pointer-events: none;
-    z-index: 2; /* same layer as grid */
+    z-index: 2;
+    /* same layer as grid */
 }
 
 /* PDF origin marker (bottom-left of each page in PDF space) */
@@ -196,12 +276,13 @@ body {
     position: absolute;
     width: 12px;
     height: 12px;
-    border: 2px solid rgba(120,120,120,0.9);
+    border: 2px solid rgba(120, 120, 120, 0.9);
     border-radius: 50%;
     background: transparent;
     pointer-events: none;
     box-sizing: border-box;
-    z-index: 3; /* above grid */
+    z-index: 3;
+    /* above grid */
 }
 
 /* PDF Controls Overlay */
@@ -210,22 +291,25 @@ body {
     position: absolute;
     top: 15px;
     right: 15px;
-    
+
     /* Ensure it's on top */
-    z-index: 10000; /* Always above grid/overlays */
-    
+    z-index: 10000;
+    /* Always above grid/overlays */
+
     /* Styling - match page count overlay size */
     background: rgba(0, 0, 0, 0.3);
     border-radius: 8px;
     padding: 0.35rem 0.5rem;
     display: flex;
-    flex-direction: row; /* Single row of controls */
+    flex-direction: row;
+    /* Single row of controls */
     gap: 0.25rem;
     align-items: center;
     opacity: 0.4;
     transition: all 0.3s ease;
     backdrop-filter: blur(4px);
-    pointer-events: auto; /* Allow clicking on controls */
+    pointer-events: auto;
+    /* Allow clicking on controls */
 }
 
 .pdf-controls-overlay:hover {
@@ -237,16 +321,18 @@ body {
 #page-count-overlay {
     position: absolute;
     top: 15px;
-    left: 15px; /* Placed in top-left */
+    left: 15px;
+    /* Placed in top-left */
     z-index: 100;
-    
+
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(4px);
     padding: 0.5rem 0.75rem;
     border-radius: 8px;
     font-size: 0.8rem;
     font-weight: 600;
-    pointer-events: none; /* Prevents it from blocking clicks */
+    pointer-events: none;
+    /* Prevents it from blocking clicks */
 }
 
 .pdf-controls-overlay .control-group {
@@ -310,46 +396,219 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-#reassembly-x-density {
-    grid-row: 1 / 2; grid-column: 6 / 7;
+#rec-col #rec-x-density {
     background-color: #ffd700;
     position: relative;
+    grid-row: 1;
+    grid-column: 1;
 }
 
-#reassembly-viewer {
-    grid-row: 2 / 3; grid-column: 6 / 7;
+#rec-col #rec-y-density {
+    background-color: #ffffe0;
+    position: relative;
+    overflow: hidden;
+    grid-row: 2;
+    grid-column: 2;
+}
+
+#rec-col #rec-viewer {
     background-color: #ffffe0;
     position: relative;
     overflow: auto;
+    grid-row: 2;
+    grid-column: 1;
+}
+
+#rec-col #rec-options {
+    background-color: #9932cc;
+    padding: 0.5rem;
+    overflow-y: auto;
+    grid-row: 3;
+    grid-column: 1 / span 2;
+}
+
+/* Ensure both options panels share the same base typography and alignment */
+#pdf-col #pdf-options,
+#rec-col #rec-options {
+    color: #333;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Rec options title and collapse (mirror pdf options) */
+.rec-options-title {
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    position: absolute;
+    top: 8px;
+    right: 35px;
+    pointer-events: none;
+}
+
+.options-collapsed .rec-controls .rec-control-group:not(:first-child) {
+    display: none;
+}
+
+#rec-col #rec-log {
+    background-color: #ff8c00;
+    padding: 0.5rem;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    grid-row: 4;
+    grid-column: 1 / span 2;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    /* override .box center */
+    justify-content: flex-start;
+    /* override .box center */
+    resize: vertical;
+    /* CSS-only resize handle (bottom-right) */
+    overflow: auto;
+    /* required for resize to appear */
+}
+
+/* Make both logs use the exact same monospace font stack and left alignment */
+#pdf-col #pdf-log,
+#rec-col #rec-log {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace !important;
+    font-size: 0.8rem !important;
+    text-align: left;
+}
+
+/* Ensure inner log text is left-aligned */
+.pdf-log-content,
+.rec-log-content,
+.log-content {
+    direction: ltr;
+    text-align: left;
+}
+
+.pdf-log-entry,
+.rec-log-entry,
+.log-entry {
+    text-align: left;
+}
+
+/* Prevent overlap with the top-right/top-left overlay toggle buttons */
+#pdf-col #pdf-log {
+    padding-top: 8px;
+}
+
+#rec-col #rec-log {
+    padding-top: 8px;
+}
+
+/* Log scrollbars */
+#pdf-col #pdf-log .pdf-log-scroll-container {
+    overflow-y: auto;
+    flex: 1 1 auto;           /* fill available height in log panel */
+    display: flex;            /* anchor content to bottom when not overflowing */
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+#rec-col #rec-log .rec-log-content {
+    overflow-y: auto;
+    flex: 1 1 auto;           /* fill available height in log panel */
+    display: flex;            /* anchor content to bottom when not overflowing */
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+/* Anchor log content to the bottom when content height < container height */
+#pdf-col #pdf-log .pdf-log-scroll-container,
+#rec-col #rec-log .rec-log-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+/* Tighten spacing between log lines; avoid extra gap after last line */
+.pdf-log-entry,
+.rec-log-entry,
+.log-entry { margin-bottom: 0.2rem; }
+.pdf-log-content > .pdf-log-entry:last-child,
+.rec-log-content > .rec-log-entry:last-child,
+.log-content > .log-entry:last-child { margin-bottom: 0; }
+
+/* Draggable top-edge handle for logs */
+.log-resize-handle,
+.pdf-log-resize-handle,
+.rec-log-resize-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 6px;
+    cursor: ns-resize;
+    z-index: 101;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0));
+}
+
+/* Ann toggles resize handle (top edge) */
+.ann-toggles-resize-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    cursor: ns-resize;
+    z-index: 101;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0));
+    user-select: none;
+}
+
+/* Ann toggles resize handle (top edge) */
+.ann-toggles-resize-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 6px;
+    cursor: ns-resize;
+    z-index: 101;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0));
 }
 
 /* Right label/annotation rail to the immediate right of the PDF */
 /* Single source of truth: use #annotations as the right rail */
 
 /* --- BLUE HUES - Annotations and Toggles --- */
-#pdf-annotations {
-    grid-row: 2 / 3; grid-column: 3 / 5; /* two squares wide next to #pdf-viewer */
+#ann-col #ann-list {
     background-color: #ffffff;
     position: relative;
-    overflow: hidden; /* ruler follows main scroll */
-    padding: 0; /* keep zero to avoid offset */
-    display: block; /* override .box flex */
+    overflow: hidden;
+    /* ruler follows main scroll */
+    padding: 0;
+    /* keep zero to avoid offset */
+    display: block;
+    /* override .box flex */
+    grid-row: 2;
+    grid-column: 1;
 }
 
-#toggles {
-    grid-row: 3 / 5; grid-column: 3 / 5;
+#ann-col #ann-toggles {
     background-color: #007fff;
     padding: 0.5rem;
-    overflow-y: auto;
     align-items: flex-start;
     justify-content: flex-start;
+    display: flex;
+    flex-direction: column;
+    grid-row: 3;
+    grid-column: 1;
+    overflow: hidden; /* clip handle background strictly to column */
 }
 
 .label-toggles-container {
     width: 100%;
-    height: 100%;
+    height: auto;
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
+    overflow-y: auto;
 }
 
 .toggle-controls {
@@ -412,13 +671,35 @@ body {
 }
 
 /* --- PURPLE HUES - Options --- */
-#pdf-options {
-    grid-row: 3 / 4; grid-column: 1 / 3;
+#pdf-col #pdf-options {
     background-color: #8a2be2;
     padding: 0.5rem;
     overflow-y: auto;
-    align-items: flex-start; /* Override .box centering */
-    justify-content: flex-start; /* Override .box centering */
+    align-items: flex-start;
+    /* Override .box centering */
+    justify-content: flex-start;
+    /* Override .box centering */
+    grid-row: 3;
+    grid-column: 1 / span 2;
+}
+
+/* PDF log row: single column track (row 4), no forced height */
+#pdf-col #pdf-log {
+    background-color: #ffa500;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    min-height: 25px;
+    grid-row: 4;
+    grid-column: 1 / span 2;
+}
+
+#pdf-col #pdf-log .pdf-log-scroll-container {
+    width: 100%;
+    overflow-y: auto;
+    padding: 0.5rem;
 }
 
 /* PDF Controls */
@@ -466,7 +747,9 @@ body {
     cursor: not-allowed;
 }
 
-.zoom-display, .page-display, .file-display {
+.zoom-display,
+.page-display,
+.file-display {
     background: rgba(255, 255, 255, 0.1);
     padding: 0.25rem 0.5rem;
     border-radius: 3px;
@@ -483,65 +766,26 @@ body {
     white-space: nowrap;
 }
 
-#reassembly-options {
-    grid-row: 3 / 4; grid-column: 6 / 8;
-    background-color: #9932cc;
-    padding: 0.5rem;
-    overflow-y: auto;
-}
-
-/* --- ORANGE HUES - Logs --- */
-#pdf-log {
-    grid-row: 4 / 5; grid-column: 1 / 3;
-    background-color: #ffa500;
-    font-family: 'Courier New', monospace;
-    font-size: 0.8rem;
-    position: relative; /* Anchor for absolutely positioned button */
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start; /* Override .box centering */
-    justify-content: flex-start; /* Override .box centering */
-}
-
-.log-scroll-container {
-    flex: 1;
-    width: 100%;
-    overflow-y: auto;
-    padding: 0.5rem;
-}
-
-.log-content {
-    direction: ltr; /* Left-to-right text direction */
-    text-align: left;
-}
-
-#reassembly-log {
-    grid-row: 4 / 5; grid-column: 6 / 8;
-    background-color: #ff8c00;
-    padding: 0.5rem;
-    overflow-y: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 0.8rem;
-}
-
 /* Log content styling - merged with above */
 
 .log-entry {
     text-align: left;
     margin-bottom: 0.25rem;
-    white-space: pre-wrap; /* Preserve formatting */
+    white-space: pre-wrap;
+    /* Preserve formatting */
 }
 
 /* Options title - positioned near the toggle */
-.options-title {
+.pdf-options-title {
     color: white;
     font-size: 0.9rem;
     font-weight: 600;
     position: absolute;
     top: 8px;
-    right: 35px; /* Just to the left of the toggle button */
-    pointer-events: none; /* Don't block clicks */
+    right: 35px;
+    /* Just to the left of the toggle button */
+    pointer-events: none;
+    /* Don't block clicks */
 }
 
 /* Collapsible options button - positioned in upper right */
@@ -565,6 +809,23 @@ body {
     justify-content: center;
 }
 
+/* Override toggle placement per log */
+#pdf-col #pdf-log .options-toggle {
+    right: 5px;
+    left: auto;
+}
+
+#rec-col #rec-log .options-toggle {
+    right: 5px;
+    left: auto;
+}
+
+/* Place rec-options toggle on the left */
+#rec-col #rec-options .options-toggle {
+    left: 5px;
+    right: auto;
+}
+
 .options-toggle:hover {
     background: rgba(255, 255, 255, 0.3);
 }
@@ -579,12 +840,54 @@ body {
 }
 
 .options-collapsed .pdf-controls {
+    display: block;
+}
+
+/* When options are collapsed, show only the first control-group (PDF load line) */
+.options-collapsed .pdf-controls .pdf-control-group:not(:first-child) {
     display: none;
 }
 
-/* Expanded log panel */
-.log-expanded {
-    grid-row: 3 / 5 !important;
+/* CSS-only collapse using hidden checkbox toggles */
+#pdf-col #pdf-options .options-cb:checked~.pdf-controls .pdf-control-group:not(:first-child) {
+    display: none;
+}
+
+#rec-col #rec-options .options-cb:checked~.rec-controls .rec-control-group:not(:first-child) {
+    display: none;
+}
+
+/* Collapsed log panel - always shows at least one line */
+.log-collapsed {
+    height: 25px !important;
+    min-height: 25px !important;
+    max-height: 25px !important;
+    overflow: hidden;
+}
+
+/* In collapsed log, display only the last log entry and keep updating */
+.log-collapsed .log-scroll-container,
+.log-collapsed .pdf-log-scroll-container {
+    padding: 0.2rem 0.5rem;
+}
+
+.log-collapsed .log-content .log-entry,
+.log-collapsed .pdf-log-content .pdf-log-entry {
+    display: none;
+}
+
+.log-collapsed .log-content .log-entry:last-child,
+.log-collapsed .pdf-log-content .pdf-log-entry:last-child {
+    display: block;
+}
+
+/* CSS-only collapse for logs: when checkbox checked, show only last entry */
+#pdf-col #pdf-log .log-cb:checked~.pdf-log-scroll-container .pdf-log-entry:not(:last-child) {
+    display: none;
+}
+
+#rec-col #rec-log .log-cb:checked~.rec-log-content .pdf-log-entry:not(:last-child) {
+    display: none;
 }
 
 #pdf-options {
@@ -617,8 +920,7 @@ body {
 
 /* --- CENTER DIVIDER --- */
 .center-divider {
-    grid-row: 1 / 5; grid-column: 5 / 6;
-    background-color: #555;
+    display: none;
 }
 
 /* PDF Canvas Styling */
@@ -627,9 +929,11 @@ body {
     background: rgb(214, 153, 218);
     display: flex;
     flex-direction: column;
-    align-items: flex-start; /* Left-align content for proper panning */
+    align-items: flex-start;
+    /* Left-align content for proper panning */
     padding: 5px;
-    min-height: 200vh; /* Ensure content is much taller than viewport for scrolling */
+    min-height: 200vh;
+    /* Ensure content is much taller than viewport for scrolling */
     /* Removed width: 100% to allow container to grow wider than parent for zoom/pan */
 }
 
@@ -640,7 +944,8 @@ body {
     margin: 0;
     box-shadow: none;
     border-radius: 0;
-    will-change: transform; /* Optimize for scaling */
+    will-change: transform;
+    /* Optimize for scaling */
 }
 
 /* (removed wrapper styling per request) */
@@ -752,18 +1057,96 @@ body {
     border-radius: 4px;
 }
 
-/* Responsive adjustments */
-@media (max-width: 1200px) {
-    .app-container {
-        grid-template-columns: var(--topbar-size) 1fr var(--topbar-size) var(--topbar-size) 2px 1fr var(--topbar-size);
-    }
-}
-
 @media (max-width: 768px) {
     .app-container {
         /* keep indicators square by matching topbar size to first row */
         --topbar-size: 30px;
-        grid-template-columns: var(--topbar-size) 1fr var(--topbar-size) var(--topbar-size) 2px 1fr var(--topbar-size);
-        grid-template-rows: var(--topbar-size) 1fr 60px 80px;
+        grid-template-columns: 1fr 20px 1fr;
     }
+}
+
+/* Debug color theme: add class="debug-colors" on <body> to enable */
+/* Column tints */
+body.debug-colors #pdf-col {
+    background: rgba(199, 115, 255, 0.10);
+}
+
+/* purple */
+body.debug-colors #ann-col {
+    background: rgba(76, 175, 80, 0.10);
+}
+
+/* green */
+body.debug-colors #rec-col {
+    background: rgba(255, 87, 34, 0.10);
+}
+
+/* orange */
+
+/* PDF column panels */
+/* PDF (purple/pink) */
+body.debug-colors #pdf-indicator {
+    background-color: #9c27b0 !important;
+    color: #fff;
+}
+
+body.debug-colors #pdf-x-density {
+    background-color: #f3e5f5 !important;
+}
+
+body.debug-colors #pdf-y-density {
+    background-color: #f8bbd0 !important;
+}
+
+body.debug-colors #pdf-viewer {
+    background-color: #e1bee7 !important;
+}
+
+body.debug-colors #pdf-options {
+    background-color: #ce93d8 !important;
+}
+
+body.debug-colors #pdf-log {
+    background-color: #f48fb1 !important;
+}
+
+/* Annotations column panels */
+/* ANN (greens) */
+body.debug-colors #ann-progress {
+    background-color: #c8e6c9 !important;
+}
+
+body.debug-colors #ann-list {
+    background-color: #a5d6a7 !important;
+}
+
+body.debug-colors #ann-toggles {
+    background-color: #81c784 !important;
+}
+
+/* Reconstruction column panels */
+/* REC (reds/oranges) */
+body.debug-colors #rec-indicator {
+    background-color: #e64a19 !important;
+    color: #fff;
+}
+
+body.debug-colors #rec-x-density {
+    background-color: #ffe0b2 !important;
+}
+
+body.debug-colors #rec-y-density {
+    background-color: #ffccbc !important;
+}
+
+body.debug-colors #rec-viewer {
+    background-color: #ffab91 !important;
+}
+
+body.debug-colors #rec-options {
+    background-color: #ffcc80 !important;
+}
+
+body.debug-colors #rec-log {
+    background-color: #ffab91 !important;
 }

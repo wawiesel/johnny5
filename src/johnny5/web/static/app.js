@@ -92,11 +92,15 @@ class Johnny5Viewer {
     }
 
     setupEventListeners() {
-        // Image panel indicators
-        document.getElementById('indicator-i').addEventListener('click', () => this.toggleImagePanel('i'));
-        document.getElementById('indicator-d').addEventListener('click', () => this.toggleImagePanel('d'));
-        document.getElementById('indicator-e').addEventListener('click', () => this.toggleImagePanel('e'));
-        document.getElementById('indicator-r').addEventListener('click', () => this.toggleImagePanel('r'));
+        // Image panel indicators (renamed)
+        const indI = document.getElementById('pdf-indicator');
+        const indD = document.getElementById('ann-indicator-d');
+        const indE = document.getElementById('ann-indicator-e');
+        const indR = document.getElementById('rec-indicator');
+        if (indI) indI.addEventListener('click', () => this.toggleImagePanel('i'));
+        if (indD) indD.addEventListener('click', () => this.toggleImagePanel('d'));
+        if (indE) indE.addEventListener('click', () => this.toggleImagePanel('e'));
+        if (indR) indR.addEventListener('click', () => this.toggleImagePanel('r'));
         
         // PDF file input
         const fileInput = document.getElementById('pdf-file-input');
@@ -123,17 +127,27 @@ class Johnny5Viewer {
         document.getElementById('fit-height').addEventListener('click', () => this.fitHeight());
         
         // Options toggle
-        document.getElementById('options-toggle').addEventListener('click', () => this.toggleOptions());
+        document.getElementById('pdf-options-toggle').addEventListener('click', () => this.toggleOptions());
+
+        // Log toggle
+        const logToggleBtn = document.getElementById('pdf-log-toggle');
+        if (logToggleBtn) {
+            logToggleBtn.addEventListener('click', () => this.toggleLog());
+        }
+
+        // Resizable logs (top-edge drag)
+        this.setupLogResize();
         
-        // Log copy button
-        document.getElementById('log-copy-button').addEventListener('click', () => this.copyLog());
+        // Log copy button (support both ids)
+        const copyBtn = document.getElementById('pdf-log-copy-button') || document.getElementById('log-copy-button');
+        if (copyBtn) copyBtn.addEventListener('click', () => this.copyLog());
 
         // Options: PDF grid step control (live-updatable)
         try {
             const optionsPanel = document.getElementById('pdf-options');
             if (optionsPanel) {
                 const group = document.createElement('div');
-                group.className = 'control-group';
+                group.className = 'pdf-control-group';
 
                 const label = document.createElement('label');
                 label.textContent = 'Grid step:';
@@ -1348,21 +1362,74 @@ class Johnny5Viewer {
     }
 
     toggleOptions() {
-        const optionsPanel = document.getElementById('options');
-        const toggleButton = document.getElementById('options-toggle');
-        const logPanel = document.getElementById('log');
-        
+        const optionsPanel = document.getElementById('pdf-options');
+        const toggleButton = document.getElementById('pdf-options-toggle');
+        if (!optionsPanel || !toggleButton) return;
+
         if (optionsPanel.classList.contains('options-collapsed')) {
             optionsPanel.classList.remove('options-collapsed');
-            logPanel.classList.remove('log-expanded');
             toggleButton.textContent = '▼';
             optionsPanel.style.height = '';
         } else {
             optionsPanel.classList.add('options-collapsed');
-            logPanel.classList.add('log-expanded');
             toggleButton.textContent = '▶';
-            optionsPanel.style.height = '25px'; // Show a sliver
+            optionsPanel.style.height = '25px';
         }
+    }
+
+    toggleLog() {
+        const logPanel = document.getElementById('pdf-log');
+        const toggleButton = document.getElementById('pdf-log-toggle');
+        if (!logPanel || !toggleButton) return;
+
+        if (logPanel.classList.contains('log-collapsed')) {
+            logPanel.classList.remove('log-collapsed');
+            toggleButton.textContent = '▼';
+            // ensure scroller reflects full height
+            const content = document.getElementById('left-log-content');
+            if (content) content.scrollTop = content.scrollHeight;
+        } else {
+            logPanel.classList.add('log-collapsed');
+            toggleButton.textContent = '▶';
+        }
+    }
+
+    setupLogResize() {
+        const handles = document.querySelectorAll('.log-resize-handle, .pdf-log-resize-handle');
+        handles.forEach(handle => {
+            handle.addEventListener('pointerdown', (e) => {
+                const targetId = handle.getAttribute('data-target');
+                const pane = document.getElementById(targetId);
+                if (!pane) return;
+
+                // If collapsed, expand first
+                pane.classList.remove('log-collapsed');
+                if (targetId === 'pdf-log') {
+                    const btn = document.getElementById('pdf-log-toggle');
+                    if (btn) btn.textContent = '▼';
+                }
+
+                const startY = e.clientY;
+                const startH = pane.getBoundingClientRect().height;
+                const minH = 25;
+                const maxH = Math.max(minH, Math.floor(window.innerHeight * 0.7));
+
+                const onMove = (ev) => {
+                    const dy = ev.clientY - startY; // dragging down increases dy; we resize from top so invert
+                    let newH = startH - dy;
+                    if (newH < minH) newH = minH;
+                    if (newH > maxH) newH = maxH;
+                    pane.style.height = newH + 'px';
+                };
+                const onUp = () => {
+                    window.removeEventListener('pointermove', onMove);
+                    window.removeEventListener('pointerup', onUp);
+                };
+
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+            });
+        });
     }
 
     copyLog() {
