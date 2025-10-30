@@ -78,9 +78,6 @@
                             <button id="load-pdf-btn" class="control-btn">Load PDF</button>
                             <span id="current-file-name" class="file-display">No file</span>
                         </div>
-                        <div class="pdf-control-group">Prototype: line 1 of filler text.</div>
-                        <div class="pdf-control-group">Prototype: line 2 of filler text.</div>
-                        <div class="pdf-control-group">Prototype: line 3 of filler text.</div>
                     </div>
                 </div>
                 <div id="pdf-log" class="box dark-text" style="position: relative;">
@@ -105,6 +102,10 @@
                 <div id="ann-toggles" class="box" style="position: relative;">
                     <div class="ann-toggles-resize-handle" title="Drag to resize"></div>
                     <div class="label-toggles-container">
+                        <div class="label-toggles-toolbar">
+                            <button id="select-all-labels" class="control-btn" title="Select all labels">Select All</button>
+                            <button id="deselect-all-labels" class="control-btn" title="Deselect all labels">Deselect All</button>
+                        </div>
                         <div id="label-checkboxes" class="label-checkboxes">
                             <!-- Dynamically generated checkboxes will appear here -->
                         </div>
@@ -145,7 +146,7 @@
     </div>
 
     <!-- <script src="/static/density-charts.js"></script> -->
-    <!-- <script src="/static/app.js"></script> -->
+    <script src="/static/app.js"></script>
     <script src="/static/resize.js"></script>
 </body>
 
