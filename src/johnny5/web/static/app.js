@@ -135,8 +135,7 @@ class Johnny5Viewer {
             logToggleBtn.addEventListener('click', () => this.toggleLog());
         }
 
-        // Resizable logs (top-edge drag)
-        this.setupLogResize();
+        // Log resize removed - only ann-toggles is resizable
         
         // Log copy button (support both ids)
         const copyBtn = document.getElementById('pdf-log-copy-button') || document.getElementById('log-copy-button');

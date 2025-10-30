@@ -486,8 +486,8 @@ body {
 }
 
 /* Log scrollbars */
-#pdf-col #pdf-log .pdf-log-scroll-container {
-    overflow-y: auto;
+#pdf-col #pdf-log .pdf-log-content {
+    overflow-y: scroll;
     flex: 1 1 auto;
     /* fill available height in log panel */
     display: flex;
@@ -507,7 +507,7 @@ body {
 }
 
 /* Anchor log content to the bottom when content height < container height */
-#pdf-col #pdf-log .pdf-log-scroll-container,
+#pdf-col #pdf-log .pdf-log-content,
 #rec-col #rec-log .rec-log-content {
     display: flex;
     flex-direction: column;
@@ -680,7 +680,7 @@ body {
     grid-column: 1 / span 2;
 }
 
-#pdf-col #pdf-log .pdf-log-scroll-container {
+#pdf-col #pdf-log .pdf-log-content {
     width: 100%;
     overflow-y: auto;
     padding: 0.5rem;
