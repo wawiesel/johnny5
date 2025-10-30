@@ -77,7 +77,7 @@ body {
 
 #y-density {
     grid-row: 2 / 3; grid-column: 1 / 2;
-    background-color: #2e8b57;
+    background-color: white;
     position: relative;
     overflow: auto; /* Must be scrollable */
     height: 100%;
@@ -87,7 +87,7 @@ body {
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
 }
-
+  
 /* Ensure the ruler canvas doesn’t shrink in a flex context anywhere */
 #y-density > canvas {
     display: block;

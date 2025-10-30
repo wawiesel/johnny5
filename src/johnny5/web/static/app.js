@@ -635,16 +635,15 @@ class Johnny5Viewer {
         const ctx = gridCanvas.getContext('2d');
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
-    
-        const padTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
-        const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+
+        // Use scroller-relative coordinates to avoid padding mismatches
+        const scrollerRect = scroller.getBoundingClientRect();
     
         const pageWrappers = container.querySelectorAll('.pdf-page-wrapper');
         const pdfStep = 15;
     
         for (const wrapper of pageWrappers) {
             const pageNum = +wrapper.dataset.pageNum;
-            const pageTop = wrapper.offsetTop;
             const page = await this.pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: this.scale });
     
@@ -654,70 +653,55 @@ class Johnny5Viewer {
             // Map PDF-space points; we'll correct Y to DOM space using viewport.height
             const [x0, y0] = viewport.convertToViewportPoint(0, 0);
             const [x1,] = viewport.convertToViewportPoint(pageWidth, 0);
-            const [x2, y2] = viewport.convertToViewportPoint(0, pageHeight);
+            const [, y1] = viewport.convertToViewportPoint(0, pageHeight);
                 
-            // Translate into scroll-space: wrapper offset + container padding
-            const offsetX = padLeft;
-            const offsetY = padTop + pageTop;
-    
-            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
-            ctx.lineWidth = 1.5;
-            
-            // Draw X-axis (PDF y=0 at bottom) using yOrigin derived from viewport.height
-            const yOrigin = offsetY + viewport.height;
-            ctx.beginPath();
-            ctx.moveTo(offsetX + x0, yOrigin);
-            ctx.lineTo(offsetX + x1, yOrigin);
-            ctx.stroke();
-    
-            // Draw Y-axis (from bottom y=0 up to y=pageHeight)
-            const yTop = offsetY + (viewport.height - y2);
-            ctx.beginPath();
-            ctx.moveTo(offsetX + x0, yOrigin);
-            ctx.lineTo(offsetX + x2, yTop);
-            ctx.stroke();
-
-            // ---------- origin line ----------
-            const [xStep, yStep] = viewport.convertToViewportPoint(pdfStep, pdfStep);
-            
-            ctx.beginPath();
-            ctx.moveTo(offsetX + x0, offsetY + y0);
-            ctx.lineTo(offsetX + xStep, offsetY + yStep);
-            ctx.stroke();
+            // Translate into scroll-space via DOM rects (no padding assumptions)
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const offsetX = (wrapperRect.left - scrollerRect.left) + scroller.scrollLeft;
+            const offsetY = (wrapperRect.top  - scrollerRect.top)  + scroller.scrollTop;
 
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             ctx.lineWidth = 0.5;
             // ---- horizontal lines (constant yPDF) ----
             for (let yPdf = 0; yPdf <= pageHeight; yPdf += pdfStep) {
-                // Skip the origin row - the red X-axis lives here
-                if (yPdf === 0) continue;
-                const [xH0, yLocal] = viewport.convertToViewportPoint(0, yPdf);
+                const [xH0, yL] = viewport.convertToViewportPoint(0, yPdf);
                 const [xH1] = viewport.convertToViewportPoint(pageWidth, yPdf);
-                const yGlobal = offsetY + (viewport.height - yLocal);
-                // Snap to device pixel for crispness
-                const sx0 = Math.floor(offsetX + xH0) + 0.5;
-                const sy0 = Math.floor(yGlobal) + 0.5;
-                const sx1 = Math.floor(offsetX + xH1) + 0.5;
                 ctx.beginPath();
-                ctx.moveTo(sx0, sy0);
-                ctx.lineTo(sx1, sy0);
+                ctx.moveTo(offsetX + xH0, offsetY + yL);
+                ctx.lineTo(offsetX + xH1, offsetY + yL);
                 ctx.stroke();
             }
         
             // ---- vertical lines (constant xPDF) ----
             for (let xPdf = 0; xPdf <= pageWidth; xPdf += pdfStep) {
-                // Skip the origin column - the red Y-axis lives here
-                if (xPdf === 0) continue;
-                const [xLocal0, yLocal0] = viewport.convertToViewportPoint(xPdf, 0);
-                const [, yLocal1] = viewport.convertToViewportPoint(xPdf, pageHeight);
-                const xGlobal = Math.floor(offsetX + xLocal0) + 0.5; // x is same for both points
-                const yBottom = Math.floor(offsetY + viewport.height - yLocal0) + 0.5;
-                const yTop    = Math.floor(offsetY + viewport.height - yLocal1) + 0.5;
+                const [xL, yV0] = viewport.convertToViewportPoint(xPdf, 0);
+                const [, yV1] = viewport.convertToViewportPoint(xPdf, pageHeight);
                 ctx.beginPath();
-                ctx.moveTo(xGlobal, yBottom);
-                ctx.lineTo(xGlobal, yTop);
+                ctx.moveTo(offsetX + xL, offsetY + yV0);
+                ctx.lineTo(offsetX + xL, offsetY + yV1);
                 ctx.stroke();
             }
+
+            // Draw axes last so they appear above grid
+            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+            ctx.lineWidth = 1.5;
+
+            const [xStep, yStep] = viewport.convertToViewportPoint(pdfStep, pdfStep);
+            
+            /* origin */
+            ctx.beginPath();
+            ctx.moveTo(offsetX + x0, offsetY + y0);
+            ctx.lineTo(offsetX + xStep, offsetY + yStep);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(offsetX + x0, offsetY + y0);
+            ctx.lineTo(offsetX + x1, offsetY + y0);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(offsetX + x0, offsetY + y0);
+            ctx.lineTo(offsetX + x0, offsetY + y1);
+            ctx.stroke();
         }
     }
     
@@ -728,60 +712,52 @@ class Johnny5Viewer {
         const container = document.getElementById('pdf-canvas-container');
         if (!yPanel || !scroller || !container || !this.pdfDoc) return;
       
-        // Lock the panel’s visible height to the scroller viewport (border-box)
-        yPanel.style.height = scroller.clientHeight + 'px';
-      
-        // TOTAL height must equal the scroller's scrollable height
-        const totalHeight = container.scrollHeight;
-      
-        // Build one canvas spanning full scroll height
+        // Clear existing ruler canvases
         yPanel.innerHTML = '';
-        const canvas = document.createElement('canvas');
-        yPanel.appendChild(canvas);
-      
-        const panelWidth = Math.max(36, yPanel.clientWidth || 36);
-        const dpr = window.devicePixelRatio || 1;
-      
-        canvas.style.width  = `${panelWidth}px`;
-        canvas.style.height = `${totalHeight}px`;
-        canvas.width  = Math.floor(panelWidth * dpr);
-        canvas.height = Math.floor(totalHeight * dpr);
-
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, panelWidth, totalHeight);
       
         const pdfStep = 15; // PDF units
-        const padTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
-      
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-        ctx.lineWidth = 1;
-      
+        const panelWidth = Math.max(36, yPanel.clientWidth || 36);
+        const dpr = window.devicePixelRatio || 1;
         const pages = container.querySelectorAll('.pdf-page-wrapper');
+      
         for (const wrapper of pages) {
           const pageNum = +wrapper.dataset.pageNum;
-          const pageTop = wrapper.offsetTop; // scroll-space offset of the page
           const page = await this.pdfDoc.getPage(pageNum);
           const viewport = page.getViewport({ scale: this.scale });
+          const [, , , pageHeight] = page.view; // PDF-space height
       
-          // Proper height in PDF units
-          const [, y0, , y1] = page.view;
-          const pageHeight = (y1 - y0);
+          // Per-page ruler canvas
+          const seg = document.createElement('canvas');
+          seg.width  = Math.floor(panelWidth * dpr);
+          seg.height = Math.floor(viewport.height * dpr);
+          seg.style.width  = `${panelWidth}px`;
+          seg.style.height = `${viewport.height}px`;
+          seg.style.display = 'block';
+          // match vertical gap between pages
+          seg.style.marginBottom = getComputedStyle(wrapper).marginBottom;
+          yPanel.appendChild(seg);
       
+          const ctx = seg.getContext('2d');
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, panelWidth, viewport.height);
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          ctx.lineWidth = 1;
+      
+          // Draw horizontal lines in true PDF coordinates
           for (let yPdf = 0; yPdf <= pageHeight + 1e-6; yPdf += pdfStep) {
-            // SAME mapping as grid: no flip, no tricks
             const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
-            const y = padTop + pageTop + yLocal;      
             ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(panelWidth, y);
+            ctx.moveTo(0, yLocal);
+            ctx.lineTo(panelWidth, yLocal);
             ctx.stroke();
           }
         }
       
-        // One scroll handler, no duplicates
+        // --- Scroll sync with main scroller ---
         if (!this._rulerScrollHandler) {
-          this._rulerScrollHandler = () => { yPanel.scrollTop = scroller.scrollTop; };
+          this._rulerScrollHandler = () => {
+            yPanel.scrollTop = scroller.scrollTop;
+          };
           scroller.addEventListener('scroll', this._rulerScrollHandler);
         }
         yPanel.scrollTop = scroller.scrollTop;
