@@ -212,6 +212,8 @@ class DensityCharts {
             
             currentY += actualPageHeight;
         }
+        // Draw verification grid over the left Y-density canvas (align with PDF grid)
+        this.drawHorizontalGrid(ctx, parentWidth, totalPdfHeight, (window.__GRID_STEP_PX || 50));
         
         // --- Create SINGLE RIGHT Y-Density Canvas for entire document ---
         const rightCanvas = document.createElement('canvas');
@@ -246,6 +248,8 @@ class DensityCharts {
             
             currentY += actualPageHeight;
         }
+        // Draw verification grid over the right Y-density canvas (align with PDF grid)
+        this.drawHorizontalGrid(rightCtx, parentWidth, totalPdfHeight, (window.__GRID_STEP_PX || 50));
     }
 
     /**
@@ -276,6 +280,29 @@ class DensityCharts {
             
             ctx.fillRect(x, y, barWidth, barHeight);
         });
+    }
+
+    /**
+     * Draws a horizontal grid every fixed pixel interval to visually verify
+     * scroll synchronization with the PDF scroller. Uses device-pixel crisp lines.
+     */
+    drawHorizontalGrid(ctx, width, height, step) {
+        const gridStep = step > 0 ? step : 50; // px
+        const pdfContainer = document.getElementById('pdf-canvas-container');
+        const style = pdfContainer ? window.getComputedStyle(pdfContainer) : null;
+        const padTop = style ? (parseFloat(style.paddingTop) || 0) : 0;
+        const yStart = (gridStep - (padTop % gridStep)) % gridStep;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 1;
+        // 0.5px offset for crisp 1px lines
+        for (let y = yStart; y <= height; y += gridStep) {
+            ctx.beginPath();
+            ctx.moveTo(0, Math.floor(y) + 0.5);
+            ctx.lineTo(width, Math.floor(y) + 0.5);
+            ctx.stroke();
+        }
+        ctx.restore();
     }
 }
 

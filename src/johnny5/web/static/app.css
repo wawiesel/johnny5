@@ -111,9 +111,7 @@ body {
     flex-shrink: 0;
 }
 
-#y-density-chart {
-    /* Will be set dynamically to match PDF height */
-}
+
 
 #pdf-viewer {
     grid-row: 2 / 3; grid-column: 2 / 3;
@@ -139,6 +137,47 @@ body {
     max-width: none; /* Allow horizontal scrolling */
 }
 
+/* Grid and overlay layers inside the PDF scroller */
+#overlay-container,
+#pdf-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+}
+
+#pdf-grid {
+    z-index: 2; /* Above canvas, below controls */
+}
+
+#overlay-container {
+    z-index: 3; /* Annotations above grid */
+}
+
+/* Left ruler overlay inside the PDF scroller */
+#left-ruler {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px; /* display width; backing store set in JS */
+    pointer-events: none;
+    z-index: 2; /* same layer as grid */
+}
+
+/* PDF origin marker (bottom-left of each page in PDF space) */
+.origin-marker {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(120,120,120,0.9);
+    border-radius: 50%;
+    background: transparent;
+    pointer-events: none;
+    box-sizing: border-box;
+    z-index: 3; /* above grid */
+}
+
 /* PDF Controls Overlay */
 .pdf-controls-overlay {
     /* Position absolutely within #pdf-viewer */
@@ -147,7 +186,7 @@ body {
     right: 15px;
     
     /* Ensure it's on top */
-    z-index: 100;
+    z-index: 10000; /* Always above grid/overlays */
     
     /* Styling - match page count overlay size */
     background: rgba(0, 0, 0, 0.3);
@@ -576,9 +615,9 @@ body {
     display: block;
     max-width: 100%;
     height: auto;
-    margin: 0 auto 10px auto;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-radius: 4px;
+    margin: 0;
+    box-shadow: none;
+    border-radius: 0;
     will-change: transform; /* Optimize for scaling */
 }
 

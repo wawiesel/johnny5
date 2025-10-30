@@ -111,10 +111,14 @@ class Johnny5Viewer {
         document.getElementById('log-copy-button').addEventListener('click', () => this.copyLog());
         
         // Page count overlay updates on scroll
-        document.getElementById('pdf-scroller').addEventListener('scroll', () => this.updateCurrentPage());
+        const scroller = document.getElementById('pdf-scroller');
+        const yPanel = document.getElementById('y-density');
+        scroller.addEventListener('scroll', () => {
+            this.updateCurrentPage();
+            if (yPanel) yPanel.scrollTop = scroller.scrollTop;
+        });
         
-        // Sync Y-density scroll with PDF scroller
-        this.densityCharts.syncYDensityScroll();
+        // Left ruler lives in y-density, keep it synced via handler above
         
         // Trackpad/wheel zoom support
         this.setupTrackpadSupport();
@@ -256,10 +260,8 @@ class Johnny5Viewer {
                 // Render annotations for all pages
                 this.renderAllAnnotations();
                 
-                // Render static Y-axis charts (full document)
-                await this.densityCharts.renderStaticCharts();
-                // Render dynamic X-axis charts (for current page)
-                this.densityCharts.updateDynamicCharts();
+                // Replace y-density with left-side PDF-coordinate ruler instead of charts
+                await Promise.resolve();
             } else {
                 this.addLogEntry('left', 'No structure data available. Run disassemble command first.', 'warning');
             }
@@ -451,6 +453,8 @@ class Johnny5Viewer {
         // Render pages sequentially to preserve page order
         // (This is important for proper visual ordering)
         try {
+            this.pageViewportHeights = {};
+            this.pageViewportWidths = {};
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
                 try {
                     await this.renderPageToContainer(pageNum, container);
@@ -465,6 +469,11 @@ class Johnny5Viewer {
             
             // Update the page counter after initial render
             this.updateCurrentPage();
+
+            // Draw verification grid overlay aligned to PDF scroll space
+            await this.drawPdfGrid();
+            // Draw left ruler inside the y-density panel aligned to PDF coordinates
+            await this.drawLeftPanelRuler();
         } catch (error) {
             console.error('Error rendering pages:', error);
             this.addLogEntry('left', `Error rendering pages: ${error.message}`, 'error');
@@ -507,9 +516,9 @@ class Johnny5Viewer {
         canvas.style.width = Math.floor(viewport.width) + 'px';
         canvas.style.height = Math.floor(viewport.height) + 'px';
         canvas.style.display = 'block';
-        canvas.style.margin = '0 auto';
-        canvas.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-        canvas.style.borderRadius = '4px';
+        canvas.style.margin = '0';
+        canvas.style.boxShadow = 'none';
+        canvas.style.borderRadius = '0';
         // Removed maxWidth constraint to allow zooming beyond container width
         
         // Create the transform for high-DPI rendering
@@ -525,6 +534,8 @@ class Johnny5Viewer {
         };
         
         await page.render(renderContext).promise;
+        this.pageViewportHeights[pageNum] = viewport.height; // CSS px at current scale
+        this.pageViewportWidths[pageNum] = viewport.width;
         pageWrapper.appendChild(canvas);
         
         if (container && typeof container.appendChild === 'function') {
@@ -600,6 +611,166 @@ class Johnny5Viewer {
     updateZoomInfo() {
         document.getElementById('zoom-level').textContent = `${Math.round(this.scale * 100)}%`;
     }
+
+    async drawPdfGrid() {
+        const scroller = document.getElementById('pdf-scroller');
+        const container = document.getElementById('pdf-canvas-container');
+        if (!scroller || !container || !this.pdfDoc) return;
+    
+        let gridCanvas = document.getElementById('pdf-grid');
+        if (!gridCanvas) {
+            gridCanvas = document.createElement('canvas');
+            gridCanvas.id = 'pdf-grid';
+            scroller.appendChild(gridCanvas);
+        }
+    
+        const width = container.scrollWidth;
+        const height = container.scrollHeight || container.offsetHeight;
+        const dpr = window.devicePixelRatio || 1;
+    
+        gridCanvas.style.width = `${width}px`;
+        gridCanvas.style.height = `${height}px`;
+        gridCanvas.width = Math.floor(width * dpr);
+        gridCanvas.height = Math.floor(height * dpr);
+    
+        const ctx = gridCanvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+    
+        const padTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
+        const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+    
+        const pageWrappers = container.querySelectorAll('.pdf-page-wrapper');
+        const pdfStep = 15;
+    
+        for (const wrapper of pageWrappers) {
+            const pageNum = +wrapper.dataset.pageNum;
+            const pageTop = wrapper.offsetTop;
+            const page = await this.pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: this.scale });
+    
+            // PDF-space bounds
+            const [pageWidth, pageHeight] = page.view.slice(2); // PDF user-space size
+
+            // Map PDF (0,0), (W,0), (0,H) to viewport coordinates
+            const [x0, y0] = viewport.convertToViewportPoint(0, 0);
+            const [x1, y1] = viewport.convertToViewportPoint(pageWidth, 0);
+            const [x2, y2] = viewport.convertToViewportPoint(0, pageHeight);
+                
+            // Translate into scroll-space: wrapper offset + container padding
+            const offsetX = padLeft;
+            const offsetY = padTop + pageTop;
+    
+            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+            ctx.lineWidth = 1.5;
+            
+            // Draw X-axis
+            ctx.beginPath();
+            ctx.moveTo(offsetX + x0, offsetY + y0);
+            ctx.lineTo(offsetX + x1, offsetY + y1);
+            ctx.stroke();
+    
+            // Draw Y-axis
+            ctx.beginPath();
+            ctx.moveTo(offsetX + x0, offsetY + y0);
+            ctx.lineTo(offsetX + x2, offsetY + y2);
+            ctx.stroke();
+
+            // ---------- origin line ----------
+            const [xStep, yStep] = viewport.convertToViewportPoint(pdfStep, pdfStep);
+            
+            ctx.beginPath();
+            ctx.moveTo(offsetX + x0, offsetY + y0);
+            ctx.lineTo(offsetX + xStep, offsetY + yStep);
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.lineWidth = 0.5;
+            // ---- horizontal lines (constant yPDF) ----
+            for (let yPdf = 0; yPdf <= pageHeight; yPdf += pdfStep) {
+                const [x0, y0] = viewport.convertToViewportPoint(0, yPdf);
+                const [x1, y1] = viewport.convertToViewportPoint(pageWidth, yPdf);
+                ctx.beginPath();
+                ctx.moveTo(offsetX + x0, offsetY + y0);
+                ctx.lineTo(offsetX + x1, offsetY + y1);
+                ctx.stroke();
+            }
+        
+            // ---- vertical lines (constant xPDF) ----
+            for (let xPdf = 0; xPdf <= pageWidth; xPdf += pdfStep) {
+                const [x0, y0] = viewport.convertToViewportPoint(xPdf, 0);
+                const [x1, y1] = viewport.convertToViewportPoint(xPdf, pageHeight);
+                ctx.beginPath();
+                ctx.moveTo(offsetX + x0, offsetY + y0);
+                ctx.lineTo(offsetX + x1, offsetY + y1);
+                ctx.stroke();
+            }
+
+        }
+    }
+    
+
+    async drawLeftPanelRuler() {
+        const yPanel   = document.getElementById('y-density');
+        const scroller = document.getElementById('pdf-scroller');
+        const container = document.getElementById('pdf-canvas-container');
+        if (!yPanel || !scroller || !container || !this.pdfDoc) return;
+      
+        // Clear and build one canvas spanning the full scroll height
+        yPanel.innerHTML = '';
+        const canvas = document.createElement('canvas');
+        yPanel.appendChild(canvas);
+      
+        const panelWidth  = yPanel.clientWidth || 36;
+        const totalHeight = container.scrollHeight;           // same height as grid canvas
+        const dpr = window.devicePixelRatio || 1;
+      
+        canvas.style.width  = `${panelWidth}px`;
+        canvas.style.height = `${totalHeight}px`;
+        canvas.width  = Math.floor(panelWidth * dpr);
+        canvas.height = Math.floor(totalHeight * dpr);
+      
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, panelWidth, totalHeight);
+      
+        const padTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
+        const padLeft = parseFloat(getComputedStyle(container).paddingLeft) || 0;
+        const pdfStep = 15;
+      
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 1;
+      
+        const pages = container.querySelectorAll('.pdf-page-wrapper');
+      
+        for (const wrapper of pages) {
+          const pageNum = +wrapper.dataset.pageNum;
+          const pageTop = wrapper.offsetTop;
+          const page = await this.pdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale: this.scale });
+          const [pageWidth, pageHeight] = page.view.slice(2);
+      
+          // Draw horizontal lines at constant y in PDF units
+          for (let yPdf = 0; yPdf <= pageHeight; yPdf += pdfStep) {
+            const [x0, y0] = viewport.convertToViewportPoint(0, yPdf);
+            const yGlobal = padTop + pageTop + y0;  // align with global scroll space
+            ctx.beginPath();
+            ctx.moveTo(0, yGlobal);
+            ctx.lineTo(panelWidth, yGlobal);
+            ctx.stroke();
+          }
+        }
+      
+        // Continuous scroll sync
+        scroller.addEventListener('scroll', () => {
+          yPanel.scrollTop = scroller.scrollTop;
+        });
+      }
+      
+
+      
+    
+
 
     addLogEntry(pane, message, level = 'info') {
         const logContent = document.getElementById(`${pane}-log-content`);
