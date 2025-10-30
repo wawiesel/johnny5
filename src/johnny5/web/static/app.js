@@ -1,10 +1,6 @@
 // Johnny5 Web Viewer JavaScript
 
-// Helper function to get grid total height
-function getGridTotalHeight(container) {
-    const grid = document.getElementById('pdf-grid');
-    return grid ? (grid.offsetHeight || grid.clientHeight) : container.scrollHeight;
-}
+// (helper removed)
 
 class Johnny5Viewer {
     constructor() {
@@ -18,13 +14,12 @@ class Johnny5Viewer {
         this.structureData = null;
         this.densityData = null;
         this.allStructureData = {}; // Store structure data for all pages
-        this.allDensityData = {}; // Store density data for all pages
+        // Density data removed
         this.activeLabels = new Set(); // Currently enabled labels
         this.allLabels = []; // All available labels from document
         this.labelColors = {}; // Color scheme for each label type
         
-        // Initialize density charts module
-        this.densityCharts = new DensityCharts(this);
+        // Density charts removed
         
         // Redirect console output to log window
         this.redirectConsoleToLog();
@@ -190,7 +185,7 @@ class Johnny5Viewer {
         }
     }
 
-    async renderPage(pageNum) {
+    async renderPage() {
         // This method is deprecated - using renderAllPages() instead
         // Keeping for compatibility but redirecting to renderAllPages
         console.log('renderPage() called but using renderAllPages() instead');
@@ -237,17 +232,11 @@ class Johnny5Viewer {
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
                 try {
                     const structureResponse = await fetch(`/api/structure/${pageNum}`);
-                    const densityResponse = await fetch(`/api/density/${pageNum}`);
                     
                     if (structureResponse.ok) {
                         const structureData = await structureResponse.json();
                         this.allStructureData[pageNum] = structureData;
                         loadedCount++;
-                    }
-                    
-                    if (densityResponse.ok) {
-                        const densityData = await densityResponse.json();
-                        this.allDensityData[pageNum] = densityData;
                     }
                 } catch (error) {
                     console.log(`Failed to load data for page ${pageNum}: ${error.message}`);
@@ -287,7 +276,6 @@ class Johnny5Viewer {
         
         const page = this.structureData.page;
         const canvasRect = this.canvas.getBoundingClientRect();
-        const canvasContainerRect = this.canvas.parentElement.getBoundingClientRect();
         
         // Calculate scale factor for overlay positioning
         const scaleX = canvasRect.width / page.width;
@@ -424,7 +412,7 @@ class Johnny5Viewer {
     zoomIn() {
         this.scale = Math.min(this.scale * 1.2, 20.0); // Allow zoom up to 20x
         this.renderAllPages().then(async () => {
-            await this.densityCharts.renderStaticCharts();
+            
         });
         this.updateZoomInfo();
     }
@@ -432,7 +420,7 @@ class Johnny5Viewer {
     zoomOut() {
         this.scale = Math.max(this.scale / 1.2, 0.1);
         this.renderAllPages().then(async () => {
-            await this.densityCharts.renderStaticCharts();
+            
         });
         this.updateZoomInfo();
     }
@@ -663,9 +651,9 @@ class Johnny5Viewer {
             // PDF-space bounds
             const [pageWidth, pageHeight] = page.view.slice(2); // PDF user-space size
 
-            // Map PDF (0,0), (W,0), (0,H) to viewport coordinates
+            // Map PDF-space points; we'll correct Y to DOM space using viewport.height
             const [x0, y0] = viewport.convertToViewportPoint(0, 0);
-            const [x1, y1] = viewport.convertToViewportPoint(pageWidth, 0);
+            const [x1,] = viewport.convertToViewportPoint(pageWidth, 0);
             const [x2, y2] = viewport.convertToViewportPoint(0, pageHeight);
                 
             // Translate into scroll-space: wrapper offset + container padding
@@ -675,16 +663,18 @@ class Johnny5Viewer {
             ctx.strokeStyle = 'rgba(220,0,0,0.9)';
             ctx.lineWidth = 1.5;
             
-            // Draw X-axis
+            // Draw X-axis (PDF y=0 at bottom) using yOrigin derived from viewport.height
+            const yOrigin = offsetY + viewport.height;
             ctx.beginPath();
-            ctx.moveTo(offsetX + x0, offsetY + y0);
-            ctx.lineTo(offsetX + x1, offsetY + y1);
+            ctx.moveTo(offsetX + x0, yOrigin);
+            ctx.lineTo(offsetX + x1, yOrigin);
             ctx.stroke();
     
-            // Draw Y-axis
+            // Draw Y-axis (from bottom y=0 up to y=pageHeight)
+            const yTop = offsetY + (viewport.height - y2);
             ctx.beginPath();
-            ctx.moveTo(offsetX + x0, offsetY + y0);
-            ctx.lineTo(offsetX + x2, offsetY + y2);
+            ctx.moveTo(offsetX + x0, yOrigin);
+            ctx.lineTo(offsetX + x2, yTop);
             ctx.stroke();
 
             // ---------- origin line ----------
@@ -699,24 +689,35 @@ class Johnny5Viewer {
             ctx.lineWidth = 0.5;
             // ---- horizontal lines (constant yPDF) ----
             for (let yPdf = 0; yPdf <= pageHeight; yPdf += pdfStep) {
-                const [x0, y0] = viewport.convertToViewportPoint(0, yPdf);
-                const [x1, y1] = viewport.convertToViewportPoint(pageWidth, yPdf);
+                // Skip the origin row - the red X-axis lives here
+                if (yPdf === 0) continue;
+                const [xH0, yLocal] = viewport.convertToViewportPoint(0, yPdf);
+                const [xH1] = viewport.convertToViewportPoint(pageWidth, yPdf);
+                const yGlobal = offsetY + (viewport.height - yLocal);
+                // Snap to device pixel for crispness
+                const sx0 = Math.floor(offsetX + xH0) + 0.5;
+                const sy0 = Math.floor(yGlobal) + 0.5;
+                const sx1 = Math.floor(offsetX + xH1) + 0.5;
                 ctx.beginPath();
-                ctx.moveTo(offsetX + x0, offsetY + y0);
-                ctx.lineTo(offsetX + x1, offsetY + y1);
+                ctx.moveTo(sx0, sy0);
+                ctx.lineTo(sx1, sy0);
                 ctx.stroke();
             }
         
             // ---- vertical lines (constant xPDF) ----
             for (let xPdf = 0; xPdf <= pageWidth; xPdf += pdfStep) {
-                const [x0, y0] = viewport.convertToViewportPoint(xPdf, 0);
-                const [x1, y1] = viewport.convertToViewportPoint(xPdf, pageHeight);
+                // Skip the origin column - the red Y-axis lives here
+                if (xPdf === 0) continue;
+                const [xLocal0, yLocal0] = viewport.convertToViewportPoint(xPdf, 0);
+                const [, yLocal1] = viewport.convertToViewportPoint(xPdf, pageHeight);
+                const xGlobal = Math.floor(offsetX + xLocal0) + 0.5; // x is same for both points
+                const yBottom = Math.floor(offsetY + viewport.height - yLocal0) + 0.5;
+                const yTop    = Math.floor(offsetY + viewport.height - yLocal1) + 0.5;
                 ctx.beginPath();
-                ctx.moveTo(offsetX + x0, offsetY + y0);
-                ctx.lineTo(offsetX + x1, offsetY + y1);
+                ctx.moveTo(xGlobal, yBottom);
+                ctx.lineTo(xGlobal, yTop);
                 ctx.stroke();
             }
-
         }
     }
     
@@ -763,8 +764,8 @@ class Johnny5Viewer {
           const page = await this.pdfDoc.getPage(pageNum);
           const viewport = page.getViewport({ scale: this.scale });
       
-          // Proper width/height in PDF units (don’t assume origin==0)
-          const [x0, y0, x1, y1] = page.view;
+          // Proper height in PDF units
+          const [, y0, , y1] = page.view;
           const pageHeight = (y1 - y0);
       
           for (let yPdf = 0; yPdf <= pageHeight + 1e-6; yPdf += pdfStep) {
@@ -833,7 +834,6 @@ class Johnny5Viewer {
     setupTrackpadSupport() {
         const pdfScroller = document.getElementById('pdf-scroller');
         let lastWheelTime = 0;
-        let isZooming = false;
         
         pdfScroller.addEventListener('wheel', (e) => {
             // Check if this is a zoom gesture (Ctrl/Cmd + wheel)
@@ -942,8 +942,7 @@ class Johnny5Viewer {
         if (this.currentPage !== closestPage) {
             this.currentPage = closestPage;
             overlay.textContent = `${this.currentPage} / ${this.totalPages}`;
-            // Update dynamic X-axis charts for the new page
-            this.densityCharts.updateDynamicCharts();
+            // No dynamic density charts
         }
     }
 

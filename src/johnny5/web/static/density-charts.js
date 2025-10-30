@@ -1,3 +1,4 @@
+/* exported DensityCharts */
 // Johnny5 Density Charts Module
 
 /**

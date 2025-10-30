@@ -5,6 +5,51 @@
 
 set -e
 
+# Simple progress ticker: prints a dot every 0.5s until PID is done
+progress_ticker() {
+    local pid=$1
+    local start_ts=$(date +%s)
+    while kill -0 "$pid" 2>/dev/null; do
+        printf '.'
+        sleep 0.5
+    done
+    local end_ts=$(date +%s)
+    local elapsed=$(( end_ts - start_ts ))
+    echo " (${elapsed}s)"
+}
+
+echo "🔎 Running JS/CSS linters (if installed)"
+
+# Detect project root (this script lives in scripts/)
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+
+# ESLint first (fail fast)
+if command -v npx >/dev/null 2>&1 && [ -f "$ROOT_DIR/eslint.config.cjs" ]; then
+    echo "▶ ESLint: src/johnny5/web/static/**/*.js"
+    if ! (cd "$ROOT_DIR" && npx --yes eslint "src/johnny5/web/static/**/*.js"); then
+        echo "❌ ESLint failed"
+        exit 1
+    else
+        echo "✅ ESLint passed"
+    fi
+else
+    echo "ℹ️  ESLint not configured (skipping). Add eslint.config.cjs to enable."
+fi
+
+# Stylelint next
+if command -v npx >/dev/null 2>&1 && [ -f "$ROOT_DIR/.stylelintrc.json" ]; then
+    echo "▶ Stylelint: src/johnny5/web/static/**/*.css"
+    if ! (cd "$ROOT_DIR" && npx --yes stylelint "src/johnny5/web/static/**/*.css"); then
+        echo "❌ Stylelint failed"
+        exit 1
+    else
+        echo "✅ Stylelint passed"
+    fi
+else
+    echo "ℹ️  Stylelint not configured (skipping). Add .stylelintrc.json to enable."
+fi
+
+echo ""
 echo "🔍 Running pre-commit validation for example README files..."
 
 # Find all README.md files in examples/*/ directories
@@ -47,7 +92,14 @@ for readme_file in $readme_files; do
                 # Calculate the correct path to venv from the temp directory
                 venv_path=$(realpath "$example_dir/../../venv/bin/activate")
                 src_path=$(realpath "$example_dir/../../src")
-                if (cd "$temp_dir" && source "$venv_path" && export PATH="$(dirname "$venv_path"):$PATH" && export PYTHONPATH="$src_path:$PYTHONPATH" && eval "$command" >/dev/null 2>&1); then
+                # Run with progress ticker
+                if (
+                    cd "$temp_dir" && source "$venv_path" \
+                    && export PATH="$(dirname "$venv_path"):$PATH" \
+                    && export PYTHONPATH="$src_path:$PYTHONPATH" \
+                    && ( eval "$command" >/dev/null 2>&1 & CMD_PID=$!; \
+                         echo -n "      ⏳ Running in temp dir"; progress_ticker $CMD_PID )
+                ); then
                     echo "    ✅ Command would succeed: $command"
                     rm -rf "$temp_dir"
                 else
@@ -60,7 +112,13 @@ for readme_file in $readme_files; do
             
             # Change to the example directory and run the command
             # Use the virtual environment's Python to ensure jny5 is available
-            if ! (cd "$example_dir" && source ../../venv/bin/activate && export PATH="../../venv/bin:$PATH" && export PYTHONPATH="../../src:$PYTHONPATH" && eval "$command"; exit_code=$?; echo "    Exit code: $exit_code"; exit $exit_code); then
+            if ! (
+                cd "$example_dir" \
+                && source ../../venv/bin/activate \
+                && export PATH="../../venv/bin:$PATH" \
+                && export PYTHONPATH="../../src:$PYTHONPATH" \
+                && ( eval "$command" & CMD_PID=$!; echo -n "      ⏳ Running"; progress_ticker $CMD_PID )
+            ); then
                 echo "    ❌ Command failed: $command"
                 validation_failed=true
             else

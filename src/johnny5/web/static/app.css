@@ -119,7 +119,7 @@ body {
 
 #pdf-viewer {
     grid-row: 2 / 3; grid-column: 2 / 3;
-    background-color: #98fb98;
+    background-color: #eaeaea; /* light grey behind scroller */
     position: relative; /* Anchor for absolutely positioned controls */
     height: 100%;
     display: flex; /* Override .box to control flow */
@@ -139,6 +139,7 @@ body {
     will-change: scroll-position; /* Optimize for scrolling */
     max-height: none; /* Remove any height constraints */
     max-width: none; /* Allow horizontal scrolling */
+    background-color: #f2f2f2; /* light grey behind PDF pages */
 }
 
 /* Grid and overlay layers inside the PDF scroller */
@@ -606,7 +607,7 @@ body {
 /* PDF Canvas Styling */
 .pdf-canvas-container {
     position: relative;
-    background: white;
+    background: rgb(214, 153, 218);
     display: flex;
     flex-direction: column;
     align-items: flex-start; /* Left-align content for proper panning */
@@ -624,6 +625,8 @@ body {
     border-radius: 0;
     will-change: transform; /* Optimize for scaling */
 }
+
+/* (removed wrapper styling per request) */
 
 /* Annotation Overlays */
 .annotation-overlay {
