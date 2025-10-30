@@ -22,6 +22,10 @@ class Johnny5Viewer {
         // Density charts removed
         
         // Redirect console output to log window
+        // Initialize global settings bucket (stable surface for runtime tweaks)
+        window.J5 = window.J5 || {};
+        window.J5.settings = window.J5.settings || { pdfStep: 15 };
+
         this.redirectConsoleToLog();
         
         this.init();
@@ -46,6 +50,19 @@ class Johnny5Viewer {
             originalWarn.apply(console, args);
             this.addLogEntry('left', args.join(' '), 'warning');
         };
+    }
+
+    // Compute the maximum allowed scale so the page does not exceed the viewer width
+    async _getMaxScale() {
+        if (!this.pdfDoc) return this.scale;
+        const container = document.getElementById('pdf-viewer');
+        if (!container) return this.scale;
+        const page = await this.pdfDoc.getPage(1);
+        const viewportAtOne = page.getViewport({ scale: 1.0 });
+        // Keep a tiny margin on both sides (5px each)
+        const innerWidth = Math.max(0, container.clientWidth - 10);
+        if (viewportAtOne.width === 0) return this.scale;
+        return innerWidth / viewportAtOne.width;
     }
 
     async init() {
@@ -110,6 +127,53 @@ class Johnny5Viewer {
         
         // Log copy button
         document.getElementById('log-copy-button').addEventListener('click', () => this.copyLog());
+
+        // Options: PDF grid step control (live-updatable)
+        try {
+            const optionsPanel = document.getElementById('options');
+            if (optionsPanel) {
+                const group = document.createElement('div');
+                group.className = 'control-group';
+
+                const label = document.createElement('label');
+                label.textContent = 'Grid step:';
+
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.id = 'pdf-step-input';
+                input.min = '1';
+                input.max = '500';
+                input.step = '1';
+                input.value = String((window.J5 && window.J5.settings && window.J5.settings.pdfStep) || 15);
+                input.style.width = '80px';
+
+                let redrawTimer = null;
+                const applyValue = () => {
+                    const val = Number(input.value);
+                    if (!Number.isFinite(val) || val <= 0) return;
+                    window.J5.settings.pdfStep = val;
+                    // Redraw overlays that depend on pdfStep without re-rendering pages
+                    window.clearTimeout(redrawTimer);
+                    redrawTimer = setTimeout(() => {
+                        this.drawPdfGrid();
+                        this.drawLeftPanelRuler();
+                    }, 10);
+                };
+
+                input.addEventListener('change', applyValue);
+                input.addEventListener('input', applyValue);
+
+                group.appendChild(label);
+                group.appendChild(input);
+
+                const pdfControls = optionsPanel.querySelector('.pdf-controls');
+                if (pdfControls) {
+                    pdfControls.appendChild(group);
+                } else {
+                    optionsPanel.appendChild(group);
+                }
+            }
+        } catch {}
         
         // Page count overlay updates on scroll
         const scroller = document.getElementById('pdf-scroller');
@@ -130,6 +194,19 @@ class Johnny5Viewer {
 
         // Keep left ruler style in lockstep with viewer styles (no CSS duplication)
         this.setupRulerStyleSync();
+        // Keep pages centered and margins consistent on resize
+        window.addEventListener('resize', async () => {
+            // If current scale exceeds max after resize, clamp and rerender
+            const maxScale = await this._getMaxScale();
+            if (this.scale > maxScale) {
+                this.scale = maxScale;
+                await this.renderAllPages();
+                this.updateZoomInfo();
+            } else {
+                // Still ensure centering/margins applied
+                await this.renderAllPages();
+            }
+        });
     }
 
     connectWebSocket() {
@@ -413,19 +490,24 @@ class Johnny5Viewer {
     }
 
     zoomIn() {
-        this.scale = Math.min(this.scale * 1.2, 20.0); // Allow zoom up to 20x
-        this.renderAllPages().then(async () => {
-            
-        });
-        this.updateZoomInfo();
+        (async () => {
+            const maxScale = await this._getMaxScale();
+            this.scale = Math.min(this.scale * 1.2, maxScale);
+            await this.renderAllPages();
+            this.updateZoomInfo();
+        })();
     }
 
     zoomOut() {
-        this.scale = Math.max(this.scale / 1.2, 0.1);
-        this.renderAllPages().then(async () => {
-            
-        });
-        this.updateZoomInfo();
+        (async () => {
+            const maxScale = await this._getMaxScale();
+            // Allow zooming out freely but cap on the high end by maxScale
+            this.scale = Math.max(this.scale / 1.2, 0.1);
+            // If zoomed out and then in again, ensure we never exceed maxScale
+            if (this.scale > maxScale) this.scale = maxScale;
+            await this.renderAllPages();
+            this.updateZoomInfo();
+        })();
     }
     
     async renderAllPages() {
@@ -433,6 +515,11 @@ class Johnny5Viewer {
             console.error('No PDF document loaded');
             return;
         }
+        // Ensure we never render beyond the max allowed scale
+        try {
+            const maxScale = await this._getMaxScale();
+            if (this.scale > maxScale) this.scale = maxScale;
+        } catch {}
         
         console.log(`Starting to render ${this.totalPages} pages at scale ${this.scale}`);
         this.addLogEntry('left', `Rendering ${this.totalPages} pages...`);
@@ -443,6 +530,12 @@ class Johnny5Viewer {
             return;
         }
         
+        // Center pages and keep tiny margins on both sides
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.alignItems = 'center';
+        container.style.padding = '5px 5px'; // 5px top/bottom and sides
+
         container.innerHTML = ''; // Clear existing content
         
         // Render pages sequentially to preserve page order
@@ -496,7 +589,7 @@ class Johnny5Viewer {
         const pageWrapper = document.createElement('div');
         pageWrapper.className = 'pdf-page-wrapper';
         pageWrapper.dataset.pageNum = pageNum;
-        pageWrapper.style.marginBottom = '5px';
+        pageWrapper.style.margin = '0 auto 5px auto';
         pageWrapper.style.position = 'relative';
         
         // Create canvas with high-DPI support
@@ -571,7 +664,7 @@ class Johnny5Viewer {
         // Use 10px padding (5px left/right) from .pdf-canvas-container
         const containerWidth = container.clientWidth - 10;
         
-        // Calculate scale for width
+        // Calculate scale for width (max allowed)
         this.scale = containerWidth / viewport.width;
         
         console.log(`Fit width: container=${containerWidth}, page=${viewport.width}, scale=${this.scale}`);
@@ -716,7 +809,7 @@ class Johnny5Viewer {
         ctx.strokeStyle = 'rgba(0,0,0,0.1)';
         ctx.lineWidth = 0.5;
   
-    const pdfStep = 15;
+    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
     const wrappers = container.querySelectorAll('.pdf-page-wrapper');
   
     for (const wrapper of wrappers) {
@@ -788,7 +881,7 @@ class Johnny5Viewer {
     const cs = getComputedStyle(container);
     const padColor = cs.backgroundColor || 'rgb(214,153,218)';
     const dpr = window.devicePixelRatio || 1;
-    const pdfStep = 15;
+    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
     const panelWidth = Math.max(36, yPanel.clientWidth || 36);
   
     const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
