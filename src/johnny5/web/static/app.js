@@ -29,6 +29,9 @@ class Johnny5Viewer {
         this.redirectConsoleToLog();
         
         this.init();
+        
+        // Scroll log to bottom to set initial state
+        this.scrollLogToBottom('left');
     }
     
     redirectConsoleToLog() {
@@ -79,6 +82,9 @@ class Johnny5Viewer {
         
         // Auto-load test PDF
         await this.loadTestPDF();
+        
+        // Scroll pdf-log to bottom on initial load
+        this.scrollLogToBottom('left');
         
         console.log('Johnny5 Web Viewer initialized');
     }
@@ -1216,6 +1222,8 @@ class Johnny5Viewer {
         logEntry.textContent = `[${timestamp}] ${message}`;
         
         logContent.appendChild(logEntry);
+        
+        // Always scroll to bottom - locked at the end
         logContent.scrollTop = logContent.scrollHeight;
         
         // Keep only last 100 entries
@@ -1227,6 +1235,13 @@ class Johnny5Viewer {
     clearLog(pane) {
         const logContent = document.getElementById(`${pane}-log-content`);
         logContent.innerHTML = '<div class="log-entry">Log cleared</div>';
+    }
+
+    scrollLogToBottom(pane) {
+        const logContent = document.getElementById(`${pane}-log-content`);
+        if (logContent) {
+            logContent.scrollTop = logContent.scrollHeight;
+        }
     }
 
     // File input controls will be implemented later in the options panel

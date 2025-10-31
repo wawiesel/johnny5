@@ -667,7 +667,7 @@ body {
     grid-column: 1 / span 2;
 }
 
-/* PDF log row: single column track (row 4), no forced height */
+/* PDF log row: single column track (row 4), fixed 5 text lines */
 #pdf-col #pdf-log {
     background-color: #ffa500;
     position: relative;
@@ -675,14 +675,15 @@ body {
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    min-height: 25px;
+    height: 12em;
     grid-row: 4;
     grid-column: 1 / span 2;
+    overflow-y: scroll;
 }
 
 #pdf-col #pdf-log .pdf-log-content {
     width: 100%;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 0.5rem;
 }
 

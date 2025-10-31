@@ -28,6 +28,7 @@ MANIFEST
 node_modules
 playwright-report
 **/.wkso
+repomix-output.xml
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
