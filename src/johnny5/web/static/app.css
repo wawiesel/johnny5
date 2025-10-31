@@ -675,7 +675,7 @@ body {
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
-    height: 12em;
+    height: 10em;
     grid-row: 4;
     grid-column: 1 / span 2;
     overflow-y: scroll;
@@ -1019,6 +1019,4 @@ body {
     }
 }
 
-/* Debug color theme: add class="debug-colors" on <body> to enable */
-/* Column tints */
-/* debug colors moved to debug.css */
+  

@@ -18,37 +18,37 @@ class Johnny5Viewer {
         this.activeLabels = new Set(); // Currently enabled labels
         this.allLabels = []; // All available labels from document
         this.labelColors = {}; // Color scheme for each label type
-        
+
         // Density charts removed
-        
+
         // Redirect console output to log window
         // Initialize global settings bucket (stable surface for runtime tweaks)
         window.J5 = window.J5 || {};
         window.J5.settings = window.J5.settings || { pdfStep: 15 };
 
         this.redirectConsoleToLog();
-        
+
         this.init();
-        
+
         // Scroll log to bottom to set initial state
         this.scrollLogToBottom('left');
     }
-    
+
     redirectConsoleToLog() {
         const originalLog = console.log;
         const originalError = console.error;
         const originalWarn = console.warn;
-        
+
         console.log = (...args) => {
             originalLog.apply(console, args);
             this.addLogEntry('left', args.join(' '), 'debug');
         };
-        
+
         console.error = (...args) => {
             originalError.apply(console, args);
             this.addLogEntry('left', args.join(' '), 'error');
         };
-        
+
         console.warn = (...args) => {
             originalWarn.apply(console, args);
             this.addLogEntry('left', args.join(' '), 'warning');
@@ -70,29 +70,29 @@ class Johnny5Viewer {
 
     async init() {
         console.log('Johnny5 Web Viewer initializing...');
-        
+
         // Initialize PDF.js
         await this.initPDFJS();
-        
+
         // Setup event listeners
         this.setupEventListeners();
-        
+
         // Connect to WebSocket for logs
         this.connectWebSocket();
-        
+
         // Auto-load test PDF
         await this.loadTestPDF();
-        
+
         // Scroll pdf-log to bottom on initial load
         this.scrollLogToBottom('left');
-        
+
         console.log('Johnny5 Web Viewer initialized');
     }
 
     async initPDFJS() {
         // Configure PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        
+
         // Set default scale to 1.0; fitWidth() will calculate the correct initial scale
         this.scale = 1.0;
     }
@@ -100,23 +100,19 @@ class Johnny5Viewer {
     setupEventListeners() {
         // Image panel indicators (renamed)
         const indI = document.getElementById('pdf-indicator');
-        const indD = document.getElementById('ann-indicator-d');
-        const indE = document.getElementById('ann-indicator-e');
         const indR = document.getElementById('rec-indicator');
         if (indI) indI.addEventListener('click', () => this.toggleImagePanel('i'));
-        if (indD) indD.addEventListener('click', () => this.toggleImagePanel('d'));
-        if (indE) indE.addEventListener('click', () => this.toggleImagePanel('e'));
         if (indR) indR.addEventListener('click', () => this.toggleImagePanel('r'));
-        
+
         // PDF file input
         const fileInput = document.getElementById('pdf-file-input');
         const loadBtn = document.getElementById('load-pdf-btn');
         const fileNameDisplay = document.getElementById('current-file-name');
-        
+
         loadBtn.addEventListener('click', () => {
             fileInput.click();
         });
-        
+
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -125,27 +121,15 @@ class Johnny5Viewer {
                 this.loadNewPDF(file);
             }
         });
-        
+
         // PDF controls (minimal overlay)
         document.getElementById('zoom-in').addEventListener('click', () => this.zoomIn());
         document.getElementById('zoom-out').addEventListener('click', () => this.zoomOut());
         document.getElementById('fit-width').addEventListener('click', () => this.fitWidth());
         document.getElementById('fit-height').addEventListener('click', () => this.fitHeight());
-        
+
         // Options toggle
         document.getElementById('pdf-options-toggle').addEventListener('click', () => this.toggleOptions());
-
-        // Log toggle
-        const logToggleBtn = document.getElementById('pdf-log-toggle');
-        if (logToggleBtn) {
-            logToggleBtn.addEventListener('click', () => this.toggleLog());
-        }
-
-        // Log resize removed - only ann-toggles is resizable
-        
-        // Log copy button (support both ids)
-        const copyBtn = document.getElementById('pdf-log-copy-button') || document.getElementById('log-copy-button');
-        if (copyBtn) copyBtn.addEventListener('click', () => this.copyLog());
 
         // Options: PDF grid step control (live-updatable)
         try {
@@ -192,21 +176,21 @@ class Johnny5Viewer {
                     optionsPanel.appendChild(group);
                 }
             }
-        } catch {}
-        
+        } catch { }
+
         // Page count overlay updates on scroll
         const scroller = document.getElementById('pdf-scroller');
         scroller.addEventListener('scroll', () => {
             this.updateCurrentPage();
         });
-        
+
         // Left ruler scroll sync handled in drawLeftPanelRuler()
-        
+
         // Trackpad/wheel zoom support
         this.setupTrackpadSupport();
-        
+
         // Scroll synchronization (to be implemented)
-        
+
         // Label toggle controls
         document.getElementById('select-all-labels').addEventListener('click', () => this.selectAllLabels());
         document.getElementById('deselect-all-labels').addEventListener('click', () => this.deselectAllLabels());
@@ -229,21 +213,21 @@ class Johnny5Viewer {
             try {
                 await this.drawTopPanelRuler();
                 await this.drawRightLabelBar();
-            } catch {}
+            } catch { }
         });
     }
 
     connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/logs`;
-        
+
         this.websocket = new WebSocket(wsUrl);
-        
+
         this.websocket.onopen = () => {
             console.log('WebSocket connected');
             this.addLogEntry('left', 'WebSocket connected', 'info');
         };
-        
+
         this.websocket.onmessage = (event) => {
             try {
                 const logEntry = JSON.parse(event.data);
@@ -252,12 +236,12 @@ class Johnny5Viewer {
                 console.error('Failed to parse log entry:', e);
             }
         };
-        
+
         this.websocket.onclose = () => {
             console.log('WebSocket disconnected');
             this.addLogEntry('left', 'WebSocket disconnected', 'warning');
         };
-        
+
         this.websocket.onerror = (error) => {
             console.error('WebSocket error:', error);
             this.addLogEntry('left', 'WebSocket error', 'error');
@@ -268,21 +252,21 @@ class Johnny5Viewer {
         try {
             console.log('Loading PDF...');
             this.addLogEntry('left', 'Loading PDF...', 'info');
-            
+
             const loadingTask = pdfjsLib.getDocument('/api/pdf');
             this.pdfDoc = await loadingTask.promise;
             this.totalPages = this.pdfDoc.numPages;
-            
+
             console.log(`PDF loaded: ${this.totalPages} pages`);
             this.addLogEntry('left', `PDF loaded: ${this.totalPages} pages`, 'info');
-            
+
             // Update UI
             this.updatePageInfo();
             this.updateNavigationButtons();
-            
+
             // Render first page
             await this.renderPage(this.currentPage);
-            
+
         } catch (error) {
             console.error('Failed to load PDF:', error);
             this.addLogEntry('left', `Failed to load PDF: ${error.message}`, 'error');
@@ -300,35 +284,35 @@ class Johnny5Viewer {
         try {
             console.log('Auto-loading test PDF...');
             this.addLogEntry('left', 'Auto-loading test PDF: 02-split_table.pdf');
-            
+
             // Load test PDF from server - the server is already serving the multi-page PDF
             const loadingTask = pdfjsLib.getDocument('/api/pdf');
             this.pdfDoc = await loadingTask.promise;
             this.totalPages = this.pdfDoc.numPages;
             this.currentPage = 1;
-            
+
             console.log(`Test PDF loaded successfully. Pages: ${this.totalPages}`);
             this.addLogEntry('left', `Test PDF loaded successfully. Pages: ${this.totalPages}`);
-            
+
             // Fit to width (this will set the scale and render all pages)
             await this.fitWidth();
-            
+
             // Load structure and density data for all pages
             await this.loadAllPageData();
-            
+
         } catch (error) {
             console.error('Error loading test PDF:', error);
             this.addLogEntry('left', `Error loading test PDF: ${error.message}`, 'error');
         }
     }
-    
+
     async loadPageData() {
         // This method is deprecated - using loadAllPageData() instead
         // Keeping for compatibility but should not be used
         console.log('loadPageData() called but using loadAllPageData() instead');
         await this.loadAllPageData();
     }
-    
+
     async loadAllPageData() {
         try {
             let loadedCount = 0;
@@ -336,7 +320,7 @@ class Johnny5Viewer {
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
                 try {
                     const structureResponse = await fetch(`/api/structure/${pageNum}`);
-                    
+
                     if (structureResponse.ok) {
                         const structureData = await structureResponse.json();
                         this.allStructureData[pageNum] = structureData;
@@ -346,17 +330,17 @@ class Johnny5Viewer {
                     console.log(`Failed to load data for page ${pageNum}: ${error.message}`);
                 }
             }
-            
+
             if (loadedCount > 0) {
                 this.addLogEntry('left', `Loaded structure data for ${loadedCount} pages`);
-                
+
                 // After loading all data, extract unique labels and build toggle UI
                 this.extractUniqueLabels();
                 this.renderLabelToggles();
-                
+
                 // Render annotations for all pages
                 this.renderAllAnnotations();
-                
+
                 // Replace y-density with left-side PDF-coordinate ruler instead of charts
                 await Promise.resolve();
             } else {
@@ -369,27 +353,27 @@ class Johnny5Viewer {
 
     renderAnnotations() {
         if (!this.structureData || !this.structureData.page) return;
-        
+
         const overlayContainer = document.getElementById('overlay-container');
         const annotationList = document.getElementById('annotation-list');
-        
+
         // Clear existing annotations
         overlayContainer.innerHTML = '';
         annotationList.innerHTML = '';
         this.clearConnectionLines();
-        
+
         const page = this.structureData.page;
         const canvasRect = this.canvas.getBoundingClientRect();
-        
+
         // Calculate scale factor for overlay positioning
         const scaleX = canvasRect.width / page.width;
         const scaleY = canvasRect.height / page.height;
-        
+
         page.elements.forEach((element, index) => {
             if (!element.bbox || element.bbox.length !== 4) return;
-            
+
             const [x0, y0, x1, y1] = element.bbox;
-            
+
             // Create overlay element
             const overlay = document.createElement('div');
             overlay.className = 'annotation-overlay';
@@ -398,34 +382,34 @@ class Johnny5Viewer {
             overlay.style.width = `${(x1 - x0) * scaleX}px`;
             overlay.style.height = `${(y1 - y0) * scaleY}px`;
             overlay.dataset.index = index;
-            
+
             overlay.addEventListener('click', () => this.selectAnnotation(index));
-            
+
             overlayContainer.appendChild(overlay);
-            
+
             // Create annotation list item
             const listItem = document.createElement('div');
             listItem.className = 'annotation-item';
             listItem.dataset.index = index;
-            
+
             const typeDiv = document.createElement('div');
             typeDiv.className = 'annotation-type';
             typeDiv.textContent = element.type || 'Unknown';
-            
+
             const contentDiv = document.createElement('div');
             contentDiv.className = 'annotation-content';
             contentDiv.textContent = element.content || 'No content';
-            
+
             listItem.appendChild(typeDiv);
             listItem.appendChild(contentDiv);
             listItem.addEventListener('click', () => this.selectAnnotation(index));
-            
+
             annotationList.appendChild(listItem);
-            
+
             // Create connection line
             this.createConnectionLine(overlay, listItem, index);
         });
-        
+
         // Show annotations gutter if we have elements
         if (page.elements.length > 0) {
             document.querySelector('.annotations-gutter .not-implemented').style.display = 'none';
@@ -433,39 +417,39 @@ class Johnny5Viewer {
             annotationList.style.display = 'block';
         }
     }
-    
+
     createConnectionLine(overlay, listItem, index) {
         const connectionLine = document.createElement('div');
         connectionLine.className = 'connection-line';
         connectionLine.dataset.index = index;
-        
+
         // Position the connection line
         this.updateConnectionLinePosition(connectionLine, overlay, listItem);
-        
+
         // Add to overlay container
         document.getElementById('overlay-container').appendChild(connectionLine);
-        
+
         // Update position on scroll and resize
         const updatePosition = () => this.updateConnectionLinePosition(connectionLine, overlay, listItem);
         window.addEventListener('scroll', updatePosition);
         window.addEventListener('resize', updatePosition);
     }
-    
+
     updateConnectionLinePosition(connectionLine, overlay, listItem) {
         const overlayRect = overlay.getBoundingClientRect();
         const listItemRect = listItem.getBoundingClientRect();
         const containerRect = document.getElementById('overlay-container').getBoundingClientRect();
-        
+
         // Calculate positions relative to the overlay container
         const startX = overlayRect.right - containerRect.left;
         const startY = overlayRect.top + overlayRect.height / 2 - containerRect.top;
         const endX = listItemRect.left - containerRect.left;
         const endY = listItemRect.top + listItemRect.height / 2 - containerRect.top;
-        
+
         // Calculate line properties
         const length = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
         const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI;
-        
+
         // Position and style the line
         connectionLine.style.left = `${startX}px`;
         connectionLine.style.top = `${startY}px`;
@@ -474,7 +458,7 @@ class Johnny5Viewer {
         connectionLine.style.transformOrigin = '0 0';
         connectionLine.style.transform = `rotate(${angle}deg)`;
     }
-    
+
     clearConnectionLines() {
         const connectionLines = document.querySelectorAll('.connection-line');
         connectionLines.forEach(line => line.remove());
@@ -485,7 +469,7 @@ class Johnny5Viewer {
         document.querySelectorAll('.annotation-overlay.selected, .annotation-item.selected, .connection-line.selected').forEach(el => {
             el.classList.remove('selected');
         });
-        
+
         // Add selection to clicked annotation and its connection line
         const selector = pageNum ? `[data-index="${index}"][data-page="${pageNum}"]` : `[data-index="${index}"]`;
         document.querySelectorAll(selector).forEach(el => {
@@ -533,7 +517,7 @@ class Johnny5Viewer {
             this.updateZoomInfo();
         })();
     }
-    
+
     async renderAllPages() {
         if (!this.pdfDoc) {
             console.error('No PDF document loaded');
@@ -543,17 +527,17 @@ class Johnny5Viewer {
         try {
             const maxScale = await this._getMaxScale();
             if (this.scale > maxScale) this.scale = maxScale;
-        } catch {}
-        
+        } catch { }
+
         console.log(`Starting to render ${this.totalPages} pages at scale ${this.scale}`);
         this.addLogEntry('left', `Rendering ${this.totalPages} pages...`);
-        
+
         const container = document.getElementById('pdf-canvas-container');
         if (!container) {
             console.error('PDF canvas container not found');
             return;
         }
-        
+
         // Center pages and keep tiny margins on both sides
         container.style.display = 'flex';
         container.style.flexDirection = 'column';
@@ -561,7 +545,7 @@ class Johnny5Viewer {
         container.style.padding = '5px 5px'; // 5px top/bottom and sides
 
         container.innerHTML = ''; // Clear existing content
-        
+
         // Render pages sequentially to preserve page order
         // (This is important for proper visual ordering)
         try {
@@ -575,10 +559,10 @@ class Johnny5Viewer {
                     this.addLogEntry('left', `Failed to render page ${pageNum}: ${error.message}`, 'error');
                 }
             }
-            
+
             console.log(`Successfully rendered all ${this.totalPages} pages`);
             this.addLogEntry('left', `Successfully rendered ${this.totalPages} pages`);
-            
+
             // Update the page counter after initial render
             this.updateCurrentPage();
 
@@ -605,39 +589,39 @@ class Johnny5Viewer {
             this.addLogEntry('left', `Error rendering pages: ${error.message}`, 'error');
         }
     }
-    
+
     async renderPageToContainer(pageNum, container) {
         if (!container) {
             throw new Error('Container is null');
         }
-        
+
         const page = await this.pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: this.scale });
-        
+
         console.log(`Rendering page ${pageNum}: ${viewport.width}x${viewport.height}`);
-        
+
         // Create a page wrapper div for better spacing and debugging
         const pageWrapper = document.createElement('div');
         pageWrapper.className = 'pdf-page-wrapper';
         pageWrapper.dataset.pageNum = pageNum;
         pageWrapper.style.margin = '0 auto 5px auto';
         pageWrapper.style.position = 'relative';
-        
+
         // Create canvas with high-DPI support
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         if (!ctx) {
             throw new Error('Failed to get 2d context');
         }
-        
+
         // Get the screen's pixel ratio for high-DPI rendering
         const outputScale = window.devicePixelRatio || 1;
-        
+
         // Set CANVAS PIXEL size (backing store) - multiplied by devicePixelRatio for crisp rendering
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
-        
+
         // Set CANVAS DISPLAY size (CSS) - explicit pixel sizes allow zoom beyond container width
         canvas.style.width = Math.floor(viewport.width) + 'px';
         canvas.style.height = Math.floor(viewport.height) + 'px';
@@ -646,36 +630,36 @@ class Johnny5Viewer {
         canvas.style.boxShadow = 'none';
         canvas.style.borderRadius = '0';
         // Removed maxWidth constraint to allow zooming beyond container width
-        
+
         // Create the transform for high-DPI rendering
         const transform = outputScale !== 1
             ? [outputScale, 0, 0, outputScale, 0, 0]
             : null;
-        
+
         // Render page with high-DPI transform
         const renderContext = {
             canvasContext: ctx,
             viewport: viewport,
             transform: transform
         };
-        
+
         await page.render(renderContext).promise;
         this.pageViewportHeights[pageNum] = viewport.height; // CSS px at current scale
         this.pageViewportWidths[pageNum] = viewport.width;
         pageWrapper.appendChild(canvas);
-        
+
         if (container && typeof container.appendChild === 'function') {
             container.appendChild(pageWrapper);
         } else {
             throw new Error('Container.appendChild is not a function or container is null');
         }
-        
+
         console.log(`Page ${pageNum} rendered successfully at ${Math.round(this.scale * 100)}% (devicePixelRatio: ${outputScale})`);
     }
-    
+
     async fitWidth() {
         if (!this.pdfDoc) return;
-        
+
         // Wait for container to have dimensions
         await new Promise(resolve => {
             const checkContainer = () => {
@@ -688,23 +672,23 @@ class Johnny5Viewer {
             };
             checkContainer();
         });
-        
+
         const page = await this.pdfDoc.getPage(1);
         const viewport = page.getViewport({ scale: 1.0 });
         const container = document.getElementById('pdf-viewer');
         // Use 10px padding (5px left/right) from .pdf-canvas-container
         const containerWidth = container.clientWidth - 10;
-        
+
         // Calculate scale for width (max allowed)
         this.scale = containerWidth / viewport.width;
-        
+
         console.log(`Fit width: container=${containerWidth}, page=${viewport.width}, scale=${this.scale}`);
         this.addLogEntry('left', `Fitting to width: ${Math.round(this.scale * 100)}%`);
-        
+
         await this.renderAllPages(); // Await the render
         this.updateZoomInfo();
     }
-    
+
     async fitHeight() {
         if (!this.pdfDoc) return;
 
@@ -717,10 +701,10 @@ class Johnny5Viewer {
 
         // Calculate scale for height
         this.scale = containerHeight / viewport.height;
-        
+
         console.log(`Fit height: container=${containerHeight}, page=${viewport.height}, scale=${this.scale}`);
         this.addLogEntry('left', `Fitting to height: ${Math.round(this.scale * 100)}%`);
-        
+
         await this.renderAllPages();
         this.updateZoomInfo();
     }
@@ -728,7 +712,7 @@ class Johnny5Viewer {
     // Observe style/layout changes to mirror gaps/background to the left ruler via logic
     setupRulerStyleSync() {
         const container = document.getElementById('pdf-canvas-container');
-        const scroller  = document.getElementById('pdf-scroller');
+        const scroller = document.getElementById('pdf-scroller');
         if (!container || !scroller) return;
 
         const refresh = () => {
@@ -741,7 +725,7 @@ class Johnny5Viewer {
         // Observe container style/class changes
         try {
             this._rulerContainerObserver?.disconnect?.();
-        } catch {}
+        } catch { }
         if (window.MutationObserver) {
             const containerObserver = new window.MutationObserver(refresh);
             containerObserver.observe(container, { attributes: true, attributeFilter: ['style', 'class'] });
@@ -751,7 +735,7 @@ class Johnny5Viewer {
         // Observe page wrapper additions/removals, and watch each wrapper's style/class
         try {
             this._rulerListObserver?.disconnect?.();
-        } catch {}
+        } catch { }
         const observeWrappers = () => {
             container.querySelectorAll('.pdf-page-wrapper').forEach(wrapper => {
                 if (wrapper._rulerObserverAttached) return;
@@ -777,7 +761,7 @@ class Johnny5Viewer {
         if (window.ResizeObserver) {
             try {
                 this._rulerResizeObserver?.disconnect?.();
-            } catch {}
+            } catch { }
             const ro = new window.ResizeObserver(() => refresh());
             ro.observe(container);
             ro.observe(scroller);
@@ -804,7 +788,7 @@ class Johnny5Viewer {
         const sr = scroller.getBoundingClientRect();
         return {
             x: (wr.left - sr.left) + scroller.scrollLeft,
-            y: (wr.top  - sr.top)  + scroller.scrollTop,
+            y: (wr.top - sr.top) + scroller.scrollTop,
         };
     }
 
@@ -816,416 +800,416 @@ class Johnny5Viewer {
     _snapX(x) { return Math.floor(x) + 0.5; }
     _snapY(y) { return Math.floor(y) + 0.5; }
 
-  async drawPdfGrid() {
-    const scroller  = document.getElementById('pdf-scroller');
-    const container = document.getElementById('pdf-canvas-container');
-    if (!scroller || !container || !this.pdfDoc) return;
-  
-    let gridCanvas = document.getElementById('pdf-grid');
-    if (!gridCanvas) {
-      gridCanvas = document.createElement('canvas');
-      gridCanvas.id = 'pdf-grid';
-      scroller.appendChild(gridCanvas);
-    }
-    const width  = container.scrollWidth;
-    const height = container.scrollHeight || container.offsetHeight;
-    const dpr = window.devicePixelRatio || 1;
-  
-    gridCanvas.style.width  = `${width}px`;
-    gridCanvas.style.height = `${height}px`;
-    gridCanvas.width  = Math.floor(width  * dpr);
-    gridCanvas.height = Math.floor(height * dpr);
-  
-    const ctx = gridCanvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
+    async drawPdfGrid() {
+        const scroller = document.getElementById('pdf-scroller');
+        const container = document.getElementById('pdf-canvas-container');
+        if (!scroller || !container || !this.pdfDoc) return;
+
+        let gridCanvas = document.getElementById('pdf-grid');
+        if (!gridCanvas) {
+            gridCanvas = document.createElement('canvas');
+            gridCanvas.id = 'pdf-grid';
+            scroller.appendChild(gridCanvas);
+        }
+        const width = container.scrollWidth;
+        const height = container.scrollHeight || container.offsetHeight;
+        const dpr = window.devicePixelRatio || 1;
+
+        gridCanvas.style.width = `${width}px`;
+        gridCanvas.style.height = `${height}px`;
+        gridCanvas.width = Math.floor(width * dpr);
+        gridCanvas.height = Math.floor(height * dpr);
+
+        const ctx = gridCanvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
         ctx.strokeStyle = 'rgba(0,0,0,0.1)';
         ctx.lineWidth = 0.5;
-  
-    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
-    const wrappers = container.querySelectorAll('.pdf-page-wrapper');
-  
-    for (const wrapper of wrappers) {
-      const pageNum = +wrapper.dataset.pageNum;
-      const page = await this.pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: this.scale });
-  
-      const [x0, y0, x1, y1] = page.view;
-      const pageWidth  = x1 - x0;
-      const pageHeight = y1 - y0;
-  
+
+        const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+        const wrappers = container.querySelectorAll('.pdf-page-wrapper');
+
+        for (const wrapper of wrappers) {
+            const pageNum = +wrapper.dataset.pageNum;
+            const page = await this.pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: this.scale });
+
+            const [x0, y0, x1, y1] = page.view;
+            const pageWidth = x1 - x0;
+            const pageHeight = y1 - y0;
+
             const off = this._getWrapperOffset(wrapper, scroller);
-  
+
             // --- Draw grid lines (ensure style is reset for each page) ---
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
             ctx.lineWidth = 0.5;
-      // horizontal
-      for (let yPdf = 0; yPdf <= pageHeight + 1e-6; yPdf += pdfStep) {
+            // horizontal
+            for (let yPdf = 0; yPdf <= pageHeight + 1e-6; yPdf += pdfStep) {
                 const p0 = this._pdfToScroller(viewport, off, 0, yPdf);
                 const p1 = this._pdfToScroller(viewport, off, pageWidth, yPdf);
-        ctx.beginPath();
+                ctx.beginPath();
                 ctx.moveTo(this._snapX(p0.x), this._snapY(p0.y));
                 ctx.lineTo(this._snapX(p1.x), this._snapY(p1.y));
-        ctx.stroke();
-      }
-  
-      // vertical
-      for (let xPdf = 0; xPdf <= pageWidth + 1e-6; xPdf += pdfStep) {
+                ctx.stroke();
+            }
+
+            // vertical
+            for (let xPdf = 0; xPdf <= pageWidth + 1e-6; xPdf += pdfStep) {
                 const p0 = this._pdfToScroller(viewport, off, xPdf, 0);
                 const p1 = this._pdfToScroller(viewport, off, xPdf, pageHeight);
-        ctx.beginPath();
+                ctx.beginPath();
                 ctx.moveTo(this._snapX(p0.x), this._snapY(p0.y));
                 ctx.lineTo(this._snapX(p1.x), this._snapY(p1.y));
-        ctx.stroke();
-      }
-  
-      // --- Axes (red) ---
-      ctx.strokeStyle = 'rgba(220,0,0,0.9)';
-      ctx.lineWidth = 1.5;
-  
-      // X-axis (PDF y=0)
+                ctx.stroke();
+            }
+
+            // --- Axes (red) ---
+            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+            ctx.lineWidth = 1.5;
+
+            // X-axis (PDF y=0)
             const pX0 = this._pdfToScroller(viewport, off, 0, 0);
             const pX1 = this._pdfToScroller(viewport, off, pageWidth, 0);
-      ctx.beginPath();
+            ctx.beginPath();
             ctx.moveTo(this._snapX(pX0.x), this._snapY(pX0.y));
             ctx.lineTo(this._snapX(pX1.x), this._snapY(pX1.y));
-      ctx.stroke();
-  
-      // Y-axis (PDF x=0)
+            ctx.stroke();
+
+            // Y-axis (PDF x=0)
             const pY0 = this._pdfToScroller(viewport, off, 0, 0);
             const pY1 = this._pdfToScroller(viewport, off, 0, pageHeight);
-      ctx.beginPath();
+            ctx.beginPath();
             ctx.moveTo(this._snapX(pY0.x), this._snapY(pY0.y));
             ctx.lineTo(this._snapX(pY1.x), this._snapY(pY1.y));
-      ctx.stroke();
-  
+            ctx.stroke();
+
             // No extra reference lines
+        }
     }
-  }
-  
-  async drawLeftPanelRuler() {
-    const yPanel   = document.getElementById('pdf-y-density');
-    const scroller = document.getElementById('pdf-scroller');
-    const container = document.getElementById('pdf-canvas-container');
-    if (!yPanel || !scroller || !container || !this.pdfDoc) return;
-  
-    yPanel.innerHTML = '';
-    yPanel.style.overflowY = 'hidden';
-    yPanel.style.display = 'block';
-    yPanel.style.background = '#fff';
-  
-    const cs = getComputedStyle(container);
-    const padColor = cs.backgroundColor || 'rgb(214,153,218)';
-    const dpr = window.devicePixelRatio || 1;
-    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
-    const panelWidth = Math.max(36, yPanel.clientWidth || 36);
-  
-    const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
-    if (wrappers.length === 0) return;
-  
-    // Build a measured model of the scroll content
-    const items = [];
-    const getY = (w) => this._getWrapperOffset(w, scroller).y;
-  
-    // Top gap (includes container top padding)
-    const firstTop = Math.round(getY(wrappers[0]));
-    if (firstTop > 0) items.push({ type: 'gap', h: firstTop });
-  
-    for (let i = 0; i < wrappers.length; i++) {
-      const w = wrappers[i];
-      const pageNum = +w.dataset.pageNum;
-      const canvas = w.querySelector('canvas');
-      const hCss = canvas ? Math.round(canvas.getBoundingClientRect().height) : Math.round(w.offsetHeight);
-      const top = Math.round(getY(w));
-      const bottom = top + hCss;
-  
-      items.push({ type: 'page', h: hCss, pageNum });
-  
-      // Gap to next page, or trailing bottom gap to end of content
-      const nextTop = (i + 1 < wrappers.length) ? Math.round(getY(wrappers[i + 1])) : null;
-      const gapH = nextTop !== null
-        ? Math.max(0, nextTop - bottom)                                 // collapsed inter-page margin
-        : Math.max(0, Math.round(container.scrollHeight) - bottom);     // bottom padding / tail
-      if (gapH > 0) items.push({ type: 'gap', h: gapH });
+
+    async drawLeftPanelRuler() {
+        const yPanel = document.getElementById('pdf-y-density');
+        const scroller = document.getElementById('pdf-scroller');
+        const container = document.getElementById('pdf-canvas-container');
+        if (!yPanel || !scroller || !container || !this.pdfDoc) return;
+
+        yPanel.innerHTML = '';
+        yPanel.style.overflowY = 'hidden';
+        yPanel.style.display = 'block';
+        yPanel.style.background = '#fff';
+
+        const cs = getComputedStyle(container);
+        const padColor = cs.backgroundColor || 'rgb(214,153,218)';
+        const dpr = window.devicePixelRatio || 1;
+        const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+        const panelWidth = Math.max(36, yPanel.clientWidth || 36);
+
+        const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
+        if (wrappers.length === 0) return;
+
+        // Build a measured model of the scroll content
+        const items = [];
+        const getY = (w) => this._getWrapperOffset(w, scroller).y;
+
+        // Top gap (includes container top padding)
+        const firstTop = Math.round(getY(wrappers[0]));
+        if (firstTop > 0) items.push({ type: 'gap', h: firstTop });
+
+        for (let i = 0; i < wrappers.length; i++) {
+            const w = wrappers[i];
+            const pageNum = +w.dataset.pageNum;
+            const canvas = w.querySelector('canvas');
+            const hCss = canvas ? Math.round(canvas.getBoundingClientRect().height) : Math.round(w.offsetHeight);
+            const top = Math.round(getY(w));
+            const bottom = top + hCss;
+
+            items.push({ type: 'page', h: hCss, pageNum });
+
+            // Gap to next page, or trailing bottom gap to end of content
+            const nextTop = (i + 1 < wrappers.length) ? Math.round(getY(wrappers[i + 1])) : null;
+            const gapH = nextTop !== null
+                ? Math.max(0, nextTop - bottom)                                 // collapsed inter-page margin
+                : Math.max(0, Math.round(container.scrollHeight) - bottom);     // bottom padding / tail
+            if (gapH > 0) items.push({ type: 'gap', h: gapH });
+        }
+
+        // Paint the stack
+        const stack = document.createElement('div');
+        stack.style.display = 'block';
+        stack.style.width = '100%';
+        yPanel.appendChild(stack);
+
+        for (const it of items) {
+            if (it.type === 'gap') {
+                const gap = document.createElement('div');
+                gap.style.height = `${it.h}px`;
+                gap.style.background = padColor;        // pink
+                stack.appendChild(gap);
+                continue;
+            }
+
+            // Page segment
+            const seg = document.createElement('canvas');
+            seg.style.display = 'block';
+            seg.style.width = '100%';
+            seg.style.height = `${it.h}px`;
+            seg.width = Math.floor(panelWidth * dpr);
+            seg.height = Math.floor(it.h * dpr);
+            stack.appendChild(seg);
+
+            const ctx = seg.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, panelWidth, it.h);
+
+            // Draw grid using the actual PDF→viewport map
+            const page = await this.pdfDoc.getPage(it.pageNum);
+            const viewport = page.getViewport({ scale: this.scale });
+            const [, y0, , y1] = page.view;
+            const pageHeightPdf = y1 - y0;
+
+            // gray lines every 15 PDF units
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = 1;
+            for (let yPdf = 0; yPdf <= pageHeightPdf + 1e-6; yPdf += pdfStep) {
+                const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
+                const y = Math.floor(yLocal) + 0.5;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(panelWidth, y);
+                ctx.stroke();
+            }
+
+            // red origin
+            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+            ctx.lineWidth = 1.5;
+            const [, yOrigin] = viewport.convertToViewportPoint(0, 0);
+            const y0px = Math.floor(yOrigin) + 0.5;
+            ctx.beginPath();
+            ctx.moveTo(0, y0px);
+            ctx.lineTo(panelWidth, y0px);
+            ctx.stroke();
+        }
+
+        // Scroll sync
+        if (!this._rulerScrollHandler) {
+            this._rulerScrollHandler = () => { yPanel.scrollTop = scroller.scrollTop; };
+            scroller.addEventListener('scroll', this._rulerScrollHandler);
+        }
+        yPanel.scrollTop = scroller.scrollTop;
+        try { console.log('[ruler] left drawn'); } catch { }
     }
-  
-    // Paint the stack
-    const stack = document.createElement('div');
-    stack.style.display = 'block';
-    stack.style.width = '100%';
-    yPanel.appendChild(stack);
-  
-    for (const it of items) {
-      if (it.type === 'gap') {
-        const gap = document.createElement('div');
-        gap.style.height = `${it.h}px`;
-        gap.style.background = padColor;        // pink
-        stack.appendChild(gap);
-        continue;
-      }
-  
-      // Page segment
-      const seg = document.createElement('canvas');
-      seg.style.display = 'block';
-      seg.style.width = '100%';
-      seg.style.height = `${it.h}px`;
-      seg.width  = Math.floor(panelWidth * dpr);
-      seg.height = Math.floor(it.h * dpr);
-      stack.appendChild(seg);
-  
-      const ctx = seg.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, panelWidth, it.h);
-  
-      // Draw grid using the actual PDF→viewport map
-      const page = await this.pdfDoc.getPage(it.pageNum);
-      const viewport = page.getViewport({ scale: this.scale });
-      const [, y0, , y1] = page.view;
-      const pageHeightPdf = y1 - y0;
-  
-      // gray lines every 15 PDF units
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1;
-      for (let yPdf = 0; yPdf <= pageHeightPdf + 1e-6; yPdf += pdfStep) {
-        const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
-        const y = Math.floor(yLocal) + 0.5;
+
+    async drawTopPanelRuler() {
+        const xPanel = document.getElementById('pdf-x-density');
+        const scroller = document.getElementById('pdf-scroller');
+        const container = document.getElementById('pdf-canvas-container');
+        if (!xPanel || !scroller || !container || !this.pdfDoc) return;
+
+        xPanel.innerHTML = '';
+        // Disable native user scrolling; mirror from main scroller
+        xPanel.style.overflowX = 'hidden';
+        xPanel.style.background = '#fff';
+
+        const dpr = window.devicePixelRatio || 1;
+        const firstWrapper = container.querySelector('.pdf-page-wrapper');
+        if (!firstWrapper) return;
+        const off = this._getWrapperOffset(firstWrapper, scroller);
+        const firstCanvas = firstWrapper.querySelector('canvas');
+        const pageCssWidth = firstCanvas
+            ? Math.round(firstCanvas.getBoundingClientRect().width)
+            : Math.round(firstWrapper.offsetWidth);
+        const totalWidth = Math.round(container.scrollWidth);
+        const leftGapW = Math.max(0, Math.round(off.x));
+        const rightGapW = Math.max(0, totalWidth - leftGapW - pageCssWidth);
+
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.width = totalWidth + 'px';
+        row.style.height = '100%';
+        xPanel.appendChild(row);
+
+        if (leftGapW > 0) {
+            const leftGap = document.createElement('div');
+            leftGap.style.width = leftGapW + 'px';
+            leftGap.style.height = '100%';
+            leftGap.style.background = getComputedStyle(container).backgroundColor || 'rgb(214,153,218)';
+            row.appendChild(leftGap);
+        }
+
+        const segHeight = Math.max(36, xPanel.clientHeight || 36);
+        const seg = document.createElement('canvas');
+        seg.style.display = 'block';
+        seg.style.width = pageCssWidth + 'px';
+        seg.style.height = segHeight + 'px';
+        seg.width = Math.floor(pageCssWidth * dpr);
+        seg.height = Math.floor(segHeight * dpr);
+        row.appendChild(seg);
+
+        const ctx = seg.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, pageCssWidth, segHeight);
+
+        const page = await this.pdfDoc.getPage(1);
+        const viewport = page.getViewport({ scale: this.scale });
+        const [x0, , x1] = [page.view[0], page.view[1], page.view[2]];
+        const pageWidthPdf = x1 - x0;
+        const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 1;
+        for (let xPdf = 0; xPdf <= pageWidthPdf + 1e-6; xPdf += pdfStep) {
+            const [xLocal] = viewport.convertToViewportPoint(xPdf, 0);
+            const x = Math.floor(xLocal) + 0.5;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, segHeight);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+        ctx.lineWidth = 1.5;
+        const [xOrigin] = viewport.convertToViewportPoint(0, 0);
+        const x0px = Math.floor(xOrigin) + 0.5;
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(panelWidth, y);
+        ctx.moveTo(x0px, 0);
+        ctx.lineTo(x0px, segHeight);
         ctx.stroke();
-      }
-  
-      // red origin
-      ctx.strokeStyle = 'rgba(220,0,0,0.9)';
-      ctx.lineWidth = 1.5;
-      const [, yOrigin] = viewport.convertToViewportPoint(0, 0);
-      const y0px = Math.floor(yOrigin) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(0, y0px);
-      ctx.lineTo(panelWidth, y0px);
-      ctx.stroke();
-    }
-  
-    // Scroll sync
-    if (!this._rulerScrollHandler) {
-      this._rulerScrollHandler = () => { yPanel.scrollTop = scroller.scrollTop; };
-      scroller.addEventListener('scroll', this._rulerScrollHandler);
-    }
-    yPanel.scrollTop = scroller.scrollTop;
-    try { console.log('[ruler] left drawn'); } catch {}
-  }
-  
-  async drawTopPanelRuler() {
-    const xPanel   = document.getElementById('pdf-x-density');
-    const scroller = document.getElementById('pdf-scroller');
-    const container = document.getElementById('pdf-canvas-container');
-    if (!xPanel || !scroller || !container || !this.pdfDoc) return;
 
-    xPanel.innerHTML = '';
-    // Disable native user scrolling; mirror from main scroller
-    xPanel.style.overflowX = 'hidden';
-    xPanel.style.background = '#fff';
+        if (rightGapW > 0) {
+            const rightGap = document.createElement('div');
+            rightGap.style.flex = '0 0 ' + rightGapW + 'px';
+            rightGap.style.height = '100%';
+            rightGap.style.background = getComputedStyle(container).backgroundColor || 'rgb(214,153,218)';
+            row.appendChild(rightGap);
+        }
 
-    const dpr = window.devicePixelRatio || 1;
-    const firstWrapper = container.querySelector('.pdf-page-wrapper');
-    if (!firstWrapper) return;
-    const off = this._getWrapperOffset(firstWrapper, scroller);
-    const firstCanvas = firstWrapper.querySelector('canvas');
-    const pageCssWidth = firstCanvas
-      ? Math.round(firstCanvas.getBoundingClientRect().width)
-      : Math.round(firstWrapper.offsetWidth);
-    const totalWidth = Math.round(container.scrollWidth);
-    const leftGapW = Math.max(0, Math.round(off.x));
-    const rightGapW = Math.max(0, totalWidth - leftGapW - pageCssWidth);
-
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.width = totalWidth + 'px';
-    row.style.height = '100%';
-    xPanel.appendChild(row);
-
-    if (leftGapW > 0) {
-      const leftGap = document.createElement('div');
-      leftGap.style.width = leftGapW + 'px';
-      leftGap.style.height = '100%';
-      leftGap.style.background = getComputedStyle(container).backgroundColor || 'rgb(214,153,218)';
-      row.appendChild(leftGap);
+        if (!this._rulerXScrollHandler) {
+            this._rulerXScrollHandler = () => { xPanel.scrollLeft = scroller.scrollLeft; };
+            scroller.addEventListener('scroll', this._rulerXScrollHandler);
+        }
+        xPanel.scrollLeft = scroller.scrollLeft;
+        try { console.log('[ruler] top drawn'); } catch { }
     }
 
-    const segHeight = Math.max(36, xPanel.clientHeight || 36);
-    const seg = document.createElement('canvas');
-    seg.style.display = 'block';
-    seg.style.width = pageCssWidth + 'px';
-    seg.style.height = segHeight + 'px';
-    seg.width  = Math.floor(pageCssWidth * dpr);
-    seg.height = Math.floor(segHeight * dpr);
-    row.appendChild(seg);
+    async drawRightLabelBar() {
+        const yRight = document.getElementById('pdf-annotations');
+        const scroller = document.getElementById('pdf-scroller');
+        const container = document.getElementById('pdf-canvas-container');
+        if (!yRight || !scroller || !container || !this.pdfDoc) return;
 
-    const ctx = seg.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, pageCssWidth, segHeight);
+        yRight.innerHTML = '';
+        // Disable user scroll; follow main scroller only
+        yRight.style.overflowY = 'hidden';
+        yRight.style.background = '#fff';
+        yRight.style.display = 'block';
 
-    const page = await this.pdfDoc.getPage(1);
-    const viewport = page.getViewport({ scale: this.scale });
-    const [x0, , x1] = [page.view[0], page.view[1], page.view[2]];
-    const pageWidthPdf = x1 - x0;
-    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+        const cs = getComputedStyle(container);
+        const padColor = cs.backgroundColor || 'rgb(214,153,218)';
+        const dpr = window.devicePixelRatio || 1;
+        const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
+        const panelWidth = Math.max(36, yRight.clientWidth || 36);
 
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 1;
-    for (let xPdf = 0; xPdf <= pageWidthPdf + 1e-6; xPdf += pdfStep) {
-      const [xLocal] = viewport.convertToViewportPoint(xPdf, 0);
-      const x = Math.floor(xLocal) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, segHeight);
-      ctx.stroke();
+        const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
+        if (wrappers.length === 0) return;
+
+        const items = [];
+        const getY = (w) => this._getWrapperOffset(w, scroller).y;
+
+        const firstTop = Math.round(getY(wrappers[0]));
+        if (firstTop > 0) items.push({ type: 'gap', h: firstTop });
+
+        for (let i = 0; i < wrappers.length; i++) {
+            const w = wrappers[i];
+            const pageNum = +w.dataset.pageNum;
+            const canvas = w.querySelector('canvas');
+            const hCss = canvas ? Math.round(canvas.getBoundingClientRect().height) : Math.round(w.offsetHeight);
+            const top = Math.round(getY(w));
+            const bottom = top + hCss;
+
+            items.push({ type: 'page', h: hCss, pageNum });
+
+            const nextTop = (i + 1 < wrappers.length) ? Math.round(getY(wrappers[i + 1])) : null;
+            const gapH = nextTop !== null
+                ? Math.max(0, nextTop - bottom)
+                : Math.max(0, Math.round(container.scrollHeight) - bottom);
+            if (gapH > 0) items.push({ type: 'gap', h: gapH });
+        }
+
+        const stack = document.createElement('div');
+        stack.style.display = 'block';
+        stack.style.width = '100%';
+        yRight.appendChild(stack);
+
+        for (const it of items) {
+            if (it.type === 'gap') {
+                const gap = document.createElement('div');
+                gap.style.height = `${it.h}px`;
+                gap.style.background = padColor;
+                stack.appendChild(gap);
+                continue;
+            }
+
+            const seg = document.createElement('canvas');
+            seg.style.display = 'block';
+            seg.style.width = '100%';
+            seg.style.height = `${it.h}px`;
+            seg.width = Math.floor(panelWidth * dpr);
+            seg.height = Math.floor(it.h * dpr);
+            stack.appendChild(seg);
+
+            const ctx = seg.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, panelWidth, it.h);
+
+            const page = await this.pdfDoc.getPage(it.pageNum);
+            const viewport = page.getViewport({ scale: this.scale });
+            const [, y0, , y1] = page.view;
+            const pageHeightPdf = y1 - y0;
+
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+            ctx.lineWidth = 1;
+            for (let yPdf = 0; yPdf <= pageHeightPdf + 1e-6; yPdf += pdfStep) {
+                const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
+                const y = Math.floor(yLocal) + 0.5;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(panelWidth, y);
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = 'rgba(220,0,0,0.9)';
+            ctx.lineWidth = 1.5;
+            const [, yOrigin] = viewport.convertToViewportPoint(0, 0);
+            const y0px = Math.floor(yOrigin) + 0.5;
+            ctx.beginPath();
+            ctx.moveTo(0, y0px);
+            ctx.lineTo(panelWidth, y0px);
+            ctx.stroke();
+        }
+
+        if (!this._rulerRightScrollHandler) {
+            this._rulerRightScrollHandler = () => { yRight.scrollTop = scroller.scrollTop; };
+            scroller.addEventListener('scroll', this._rulerRightScrollHandler);
+        }
+        yRight.scrollTop = scroller.scrollTop;
+        try { console.log('[ruler] right drawn'); } catch { }
     }
 
-    ctx.strokeStyle = 'rgba(220,0,0,0.9)';
-    ctx.lineWidth = 1.5;
-    const [xOrigin] = viewport.convertToViewportPoint(0, 0);
-    const x0px = Math.floor(xOrigin) + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(x0px, 0);
-    ctx.lineTo(x0px, segHeight);
-    ctx.stroke();
 
-    if (rightGapW > 0) {
-      const rightGap = document.createElement('div');
-      rightGap.style.flex = '0 0 ' + rightGapW + 'px';
-      rightGap.style.height = '100%';
-      rightGap.style.background = getComputedStyle(container).backgroundColor || 'rgb(214,153,218)';
-      row.appendChild(rightGap);
-    }
-
-    if (!this._rulerXScrollHandler) {
-      this._rulerXScrollHandler = () => { xPanel.scrollLeft = scroller.scrollLeft; };
-      scroller.addEventListener('scroll', this._rulerXScrollHandler);
-    }
-    xPanel.scrollLeft = scroller.scrollLeft;
-    try { console.log('[ruler] top drawn'); } catch {}
-  }
-
-  async drawRightLabelBar() {
-    const yRight = document.getElementById('pdf-annotations');
-    const scroller = document.getElementById('pdf-scroller');
-    const container = document.getElementById('pdf-canvas-container');
-    if (!yRight || !scroller || !container || !this.pdfDoc) return;
-
-    yRight.innerHTML = '';
-    // Disable user scroll; follow main scroller only
-    yRight.style.overflowY = 'hidden';
-    yRight.style.background = '#fff';
-    yRight.style.display = 'block';
-
-    const cs = getComputedStyle(container);
-    const padColor = cs.backgroundColor || 'rgb(214,153,218)';
-    const dpr = window.devicePixelRatio || 1;
-    const pdfStep = (window.J5 && window.J5.settings && window.J5.settings.pdfStep) ?? 15;
-    const panelWidth = Math.max(36, yRight.clientWidth || 36);
-
-    const wrappers = Array.from(container.querySelectorAll('.pdf-page-wrapper'));
-    if (wrappers.length === 0) return;
-
-    const items = [];
-    const getY = (w) => this._getWrapperOffset(w, scroller).y;
-
-    const firstTop = Math.round(getY(wrappers[0]));
-    if (firstTop > 0) items.push({ type: 'gap', h: firstTop });
-
-    for (let i = 0; i < wrappers.length; i++) {
-      const w = wrappers[i];
-      const pageNum = +w.dataset.pageNum;
-      const canvas = w.querySelector('canvas');
-      const hCss = canvas ? Math.round(canvas.getBoundingClientRect().height) : Math.round(w.offsetHeight);
-      const top = Math.round(getY(w));
-      const bottom = top + hCss;
-
-      items.push({ type: 'page', h: hCss, pageNum });
-
-      const nextTop = (i + 1 < wrappers.length) ? Math.round(getY(wrappers[i + 1])) : null;
-      const gapH = nextTop !== null
-        ? Math.max(0, nextTop - bottom)
-        : Math.max(0, Math.round(container.scrollHeight) - bottom);
-      if (gapH > 0) items.push({ type: 'gap', h: gapH });
-    }
-
-    const stack = document.createElement('div');
-    stack.style.display = 'block';
-    stack.style.width = '100%';
-    yRight.appendChild(stack);
-
-    for (const it of items) {
-      if (it.type === 'gap') {
-        const gap = document.createElement('div');
-        gap.style.height = `${it.h}px`;
-        gap.style.background = padColor;
-        stack.appendChild(gap);
-        continue;
-      }
-
-      const seg = document.createElement('canvas');
-      seg.style.display = 'block';
-      seg.style.width = '100%';
-      seg.style.height = `${it.h}px`;
-      seg.width  = Math.floor(panelWidth * dpr);
-      seg.height = Math.floor(it.h * dpr);
-      stack.appendChild(seg);
-
-      const ctx = seg.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, panelWidth, it.h);
-
-      const page = await this.pdfDoc.getPage(it.pageNum);
-      const viewport = page.getViewport({ scale: this.scale });
-      const [, y0, , y1] = page.view;
-      const pageHeightPdf = y1 - y0;
-
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1;
-      for (let yPdf = 0; yPdf <= pageHeightPdf + 1e-6; yPdf += pdfStep) {
-        const [, yLocal] = viewport.convertToViewportPoint(0, yPdf);
-        const y = Math.floor(yLocal) + 0.5;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(panelWidth, y);
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = 'rgba(220,0,0,0.9)';
-      ctx.lineWidth = 1.5;
-      const [, yOrigin] = viewport.convertToViewportPoint(0, 0);
-      const y0px = Math.floor(yOrigin) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(0, y0px);
-      ctx.lineTo(panelWidth, y0px);
-      ctx.stroke();
-    }
-
-    if (!this._rulerRightScrollHandler) {
-      this._rulerRightScrollHandler = () => { yRight.scrollTop = scroller.scrollTop; };
-      scroller.addEventListener('scroll', this._rulerRightScrollHandler);
-    }
-    yRight.scrollTop = scroller.scrollTop;
-    try { console.log('[ruler] right drawn'); } catch {}
-  }
-
-  
 
     addLogEntry(pane, message, level = 'info') {
         const logContent = document.getElementById(`${pane}-log-content`);
         const logEntry = document.createElement('div');
         logEntry.className = `log-entry ${level}`;
-        
+
         const timestamp = new Date().toLocaleTimeString();
         logEntry.textContent = `[${timestamp}] ${message}`;
-        
+
         logContent.appendChild(logEntry);
-        
+
         // Always scroll to bottom - locked at the end
         logContent.scrollTop = logContent.scrollHeight;
-        
+
         // Keep only last 100 entries
         while (logContent.children.length > 100) {
             logContent.removeChild(logContent.firstChild);
@@ -1245,11 +1229,11 @@ class Johnny5Viewer {
     }
 
     // File input controls will be implemented later in the options panel
-    
+
     toggleImagePanel(type) {
         const panel = document.getElementById(`indicator-${type}`);
         const isActive = panel.classList.contains('active');
-        
+
         // Toggle active state
         if (isActive) {
             panel.classList.remove('active');
@@ -1259,11 +1243,11 @@ class Johnny5Viewer {
             this.addLogEntry('left', `Image panel ${type} activated`);
         }
     }
-    
+
     setupTrackpadSupport() {
         const pdfScroller = document.getElementById('pdf-scroller');
         let lastWheelTime = 0;
-        
+
         pdfScroller.addEventListener('wheel', (e) => {
             // Check if this is a zoom gesture (Ctrl/Cmd + wheel)
             if (e.ctrlKey || e.metaKey) {
@@ -1271,7 +1255,7 @@ class Johnny5Viewer {
                 const now = Date.now();
                 if (now - lastWheelTime < 100) return; // Throttle zoom
                 lastWheelTime = now;
-                
+
                 if (e.deltaY < 0) {
                     this.zoomIn();
                 } else {
@@ -1282,13 +1266,13 @@ class Johnny5Viewer {
                 // Don't prevent default to allow native smooth scrolling
             }
         }, { passive: false });
-        
+
         // Add keyboard navigation
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            
+
             const pdfScroller = document.getElementById('pdf-scroller');
-            switch(e.key) {
+            switch (e.key) {
                 case 'ArrowUp':
                 case 'PageUp':
                     e.preventDefault();
@@ -1310,31 +1294,31 @@ class Johnny5Viewer {
             }
         });
     }
-    
+
     async loadNewPDF(file) {
         try {
             this.addLogEntry('left', 'Loading new PDF file...');
-            
+
             // Create object URL for the file
             const fileUrl = URL.createObjectURL(file);
-            
+
             // Load PDF with PDF.js
             const loadingTask = pdfjsLib.getDocument(fileUrl);
             this.pdfDoc = await loadingTask.promise;
             this.totalPages = this.pdfDoc.numPages;
             this.currentPage = 1;
-            
+
             this.addLogEntry('left', `PDF loaded successfully. Pages: ${this.totalPages}`);
-            
+
             // Render all pages
             await this.renderAllPages();
-            
+
             // Load structure and density data for the new PDF
             await this.loadAllPageData();
-            
+
             // Clean up object URL
             URL.revokeObjectURL(fileUrl);
-            
+
         } catch (error) {
             this.addLogEntry('left', `Error loading PDF: ${error.message}`, 'error');
             console.error('Error loading PDF:', error);
@@ -1345,7 +1329,7 @@ class Johnny5Viewer {
         const scroller = document.getElementById('pdf-scroller');
         const pageWrappers = document.querySelectorAll('.pdf-page-wrapper');
         const overlay = document.getElementById('page-count-overlay');
-        
+
         if (!scroller || pageWrappers.length === 0 || !overlay) return;
 
         // Get the vertical center of the scroller's visible area
@@ -1357,7 +1341,7 @@ class Johnny5Viewer {
         pageWrappers.forEach(wrapper => {
             const pageTop = wrapper.offsetTop;
             const pageCenter = pageTop + (wrapper.offsetHeight / 2);
-            
+
             // Find which page's center is closest to the scroller's center
             const distance = Math.abs(pageCenter - scrollerCenter);
 
@@ -1391,82 +1375,9 @@ class Johnny5Viewer {
         }
     }
 
-    toggleLog() {
-        const logPanel = document.getElementById('pdf-log');
-        const toggleButton = document.getElementById('pdf-log-toggle');
-        if (!logPanel || !toggleButton) return;
-
-        if (logPanel.classList.contains('log-collapsed')) {
-            logPanel.classList.remove('log-collapsed');
-            toggleButton.textContent = '▼';
-            // ensure scroller reflects full height
-            const content = document.getElementById('left-log-content');
-            if (content) content.scrollTop = content.scrollHeight;
-        } else {
-            logPanel.classList.add('log-collapsed');
-            toggleButton.textContent = '▶';
-        }
-    }
-
-    setupLogResize() {
-        const handles = document.querySelectorAll('.log-resize-handle, .pdf-log-resize-handle');
-        handles.forEach(handle => {
-            handle.addEventListener('pointerdown', (e) => {
-                const targetId = handle.getAttribute('data-target');
-                const pane = document.getElementById(targetId);
-                if (!pane) return;
-
-                // If collapsed, expand first
-                pane.classList.remove('log-collapsed');
-                if (targetId === 'pdf-log') {
-                    const btn = document.getElementById('pdf-log-toggle');
-                    if (btn) btn.textContent = '▼';
-                }
-
-                const startY = e.clientY;
-                const startH = pane.getBoundingClientRect().height;
-                const minH = 25;
-                const maxH = Math.max(minH, Math.floor(window.innerHeight * 0.7));
-
-                const onMove = (ev) => {
-                    const dy = ev.clientY - startY; // dragging down increases dy; we resize from top so invert
-                    let newH = startH - dy;
-                    if (newH < minH) newH = minH;
-                    if (newH > maxH) newH = maxH;
-                    pane.style.height = newH + 'px';
-                };
-                const onUp = () => {
-                    window.removeEventListener('pointermove', onMove);
-                    window.removeEventListener('pointerup', onUp);
-                };
-
-                window.addEventListener('pointermove', onMove);
-                window.addEventListener('pointerup', onUp);
-            });
-        });
-    }
-
-    copyLog() {
-        const logContent = document.getElementById('left-log-content');
-        const text = logContent.innerText;
-        
-        navigator.clipboard.writeText(text).then(() => {
-            const copyButton = document.getElementById('log-copy-button');
-            const originalText = copyButton.textContent;
-            copyButton.textContent = 'Copied!';
-            setTimeout(() => {
-                copyButton.textContent = originalText;
-            }, 1000);
-        }).catch(err => {
-            console.error('Failed to copy log:', err);
-        });
-    }
-    
-    // New methods for density and labels
-    
     extractUniqueLabels() {
         const labelSet = new Set();
-        
+
         // Scan all pages for element types
         for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
             if (this.allStructureData[pageNum] && this.allStructureData[pageNum].page) {
@@ -1480,29 +1391,29 @@ class Johnny5Viewer {
                 }
             }
         }
-        
+
         this.allLabels = Array.from(labelSet).sort();
-        
+
         // Default: all labels active
         this.activeLabels = new Set(this.allLabels);
     }
-    
+
     syncYDensityScroll() {
         const pdfScroller = document.getElementById('pdf-scroller');
         const yDensity = document.getElementById('pdf-y-density');
-        
+
         if (!pdfScroller || !yDensity) return;
-        
+
         let isSyncing = false;
-        
+
         // Sync y-density scroll with pdf-scroller (one-way: pdf -> y-density)
         pdfScroller.addEventListener('scroll', () => {
             if (isSyncing) return;
-            
+
             requestAnimationFrame(() => {
                 const pdfMaxScroll = pdfScroller.scrollHeight - pdfScroller.clientHeight;
                 const scrollPercent = pdfMaxScroll > 0 ? pdfScroller.scrollTop / pdfMaxScroll : 0;
-                
+
                 const yDensityMaxScroll = yDensity.scrollHeight - yDensity.clientHeight;
                 if (yDensityMaxScroll > 0) {
                     isSyncing = true;
@@ -1514,11 +1425,11 @@ class Johnny5Viewer {
             });
         });
     }
-    
+
     renderLabelToggles() {
         const container = document.getElementById('label-checkboxes');
         container.innerHTML = '';
-        
+
         // Define colors for each label type
         const colorScheme = {
             'text': 'rgba(33, 150, 243, 0.3)',
@@ -1529,11 +1440,11 @@ class Johnny5Viewer {
             'list_item': 'rgba(0, 188, 212, 0.3)',
             'default': 'rgba(158, 158, 158, 0.3)'
         };
-        
+
         this.allLabels.forEach(label => {
             const item = document.createElement('div');
             item.className = 'label-checkbox-item';
-            
+
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.id = `label-${label}`;
@@ -1546,23 +1457,23 @@ class Johnny5Viewer {
                 }
                 this.filterAnnotationsByLabels();
             });
-            
+
             const labelEl = document.createElement('label');
             labelEl.htmlFor = checkbox.id;
-            
+
             const swatch = document.createElement('span');
             swatch.className = 'label-color-swatch';
             swatch.style.backgroundColor = colorScheme[label] || colorScheme['default'];
-            
+
             labelEl.appendChild(swatch);
             labelEl.appendChild(document.createTextNode(label));
-            
+
             item.appendChild(checkbox);
             item.appendChild(labelEl);
             container.appendChild(item);
         });
     }
-    
+
     selectAllLabels() {
         document.querySelectorAll('#label-checkboxes input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = true;
@@ -1570,7 +1481,7 @@ class Johnny5Viewer {
         this.activeLabels = new Set(this.allLabels);
         this.filterAnnotationsByLabels();
     }
-    
+
     deselectAllLabels() {
         document.querySelectorAll('#label-checkboxes input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = false;
@@ -1578,7 +1489,7 @@ class Johnny5Viewer {
         this.activeLabels.clear();
         this.filterAnnotationsByLabels();
     }
-    
+
     filterAnnotationsByLabels() {
         // Hide/show overlays, annotations, and lines based on active labels
         document.querySelectorAll('.annotation-overlay').forEach(overlay => {
@@ -1589,7 +1500,7 @@ class Johnny5Viewer {
                 overlay.style.display = 'none';
             }
         });
-        
+
         document.querySelectorAll('.annotation-item').forEach(item => {
             const elementType = item.dataset.elementType;
             if (!elementType || this.activeLabels.has(elementType)) {
@@ -1598,7 +1509,7 @@ class Johnny5Viewer {
                 item.style.display = 'none';
             }
         });
-        
+
         document.querySelectorAll('.connection-line').forEach(line => {
             const elementType = line.dataset.elementType;
             if (!elementType || this.activeLabels.has(elementType)) {
@@ -1608,27 +1519,27 @@ class Johnny5Viewer {
             }
         });
     }
-    
+
     renderAllAnnotations() {
         // Render bounding boxes and annotations for all pages
         this.clearConnectionLines();
-        
+
         for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
             if (this.allStructureData[pageNum] && this.allStructureData[pageNum].page) {
                 this.renderAnnotationsForPage(pageNum);
             }
         }
     }
-    
+
     renderAnnotationsForPage(pageNum) {
         const structureData = this.allStructureData[pageNum];
         if (!structureData || !structureData.page) return;
-        
+
         const page = structureData.page;
         const pageWrapper = document.querySelector(`.pdf-page-wrapper[data-page-num="${pageNum}"]`);
-        
+
         if (!pageWrapper) return;
-        
+
         // Create overlay container for this page if it doesn't exist
         let overlayContainer = pageWrapper.querySelector('.page-overlay-container');
         if (!overlayContainer) {
@@ -1643,21 +1554,21 @@ class Johnny5Viewer {
             pageWrapper.style.position = 'relative';
             pageWrapper.appendChild(overlayContainer);
         }
-        
+
         overlayContainer.innerHTML = '';
-        
+
         const canvas = pageWrapper.querySelector('canvas');
         if (!canvas) return;
-        
+
         const canvasRect = canvas.getBoundingClientRect();
         const scaleX = canvasRect.width / page.width;
         const scaleY = canvasRect.height / page.height;
-        
+
         page.elements.forEach((element, index) => {
             if (!element.bbox || element.bbox.length !== 4) return;
-            
+
             const [x0, y0, x1, y1] = element.bbox;
-            
+
             // Create overlay element
             const overlay = document.createElement('div');
             overlay.className = 'annotation-overlay';
@@ -1669,18 +1580,18 @@ class Johnny5Viewer {
             overlay.dataset.page = pageNum;
             overlay.dataset.index = index;
             overlay.dataset.elementType = element.type || 'unknown';
-            
+
             // Apply color based on type
             const color = this.getColorForType(element.type);
             overlay.style.borderColor = color.replace('0.3', '1');
             overlay.style.backgroundColor = color;
-            
+
             overlay.addEventListener('click', () => this.selectAnnotation(index, pageNum));
-            
+
             overlayContainer.appendChild(overlay);
         });
     }
-    
+
     getColorForType(type) {
         const colorScheme = {
             'text': 'rgba(33, 150, 243, 0.3)',
@@ -1692,7 +1603,7 @@ class Johnny5Viewer {
         };
         return colorScheme[type] || 'rgba(158, 158, 158, 0.3)';
     }
-    
+
     // All density chart methods moved to density-charts.js module
 }
 
@@ -1700,3 +1611,11 @@ class Johnny5Viewer {
 document.addEventListener('DOMContentLoaded', () => {
     new Johnny5Viewer();
 });
+
+function appendPdfLog(html) {
+    const el = document.getElementById('pdf-log');
+    if (!el) return;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    el.insertAdjacentHTML('beforeend', html);
+    if (atBottom) el.scrollTop = el.scrollHeight;
+}
