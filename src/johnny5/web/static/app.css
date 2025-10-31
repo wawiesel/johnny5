@@ -462,14 +462,6 @@ body {
     text-align: left;
 }
 
-/* Ensure inner log text is left-aligned */
-.pdf-log-content,
-.rec-log-content,
-.log-content {
-    direction: ltr;
-    text-align: left;
-}
-
 .pdf-log-entry,
 .rec-log-entry,
 .log-entry {
@@ -487,13 +479,45 @@ body {
 
 /* Log scrollbars */
 #pdf-col #pdf-log .pdf-log-content {
-    overflow-y: scroll;
-    flex: 1 1 auto;
+    overflow: visible;
+    flex: 0 0 auto;
     /* fill available height in log panel */
+    width: 100%;
+    height: auto;
+    min-height: 0;
     display: flex;
     /* anchor content to bottom when not overflowing */
     flex-direction: column;
     justify-content: flex-end;
+    scrollbar-width: thin;
+}
+
+/* Ensure scrollbar is visible in WebKit browsers */
+#pdf-col #pdf-log .pdf-log-content::-webkit-scrollbar {
+    width: 12px;
+}
+
+#pdf-col #pdf-log .pdf-log-content::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+#pdf-col #pdf-log .pdf-log-content::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+}
+
+/* Scrollbar styles for parent when it scrolls */
+#pdf-col #pdf-log::-webkit-scrollbar {
+    width: 12px;
+}
+
+#pdf-col #pdf-log::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+#pdf-col #pdf-log::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
 }
 
 #rec-col #rec-log .rec-log-content {
@@ -506,25 +530,11 @@ body {
     justify-content: flex-end;
 }
 
-/* Anchor log content to the bottom when content height < container height */
-#pdf-col #pdf-log .pdf-log-content,
-#rec-col #rec-log .rec-log-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-}
-
 /* Tighten spacing between log lines; avoid extra gap after last line */
 .pdf-log-entry,
 .rec-log-entry,
 .log-entry {
     margin-bottom: 0.2rem;
-}
-
-.pdf-log-content>.pdf-log-entry:last-child,
-.rec-log-content>.rec-log-entry:last-child,
-.log-content>.log-entry:last-child {
-    margin-bottom: 0;
 }
 
 /* Draggable top-edge handle for logs */
@@ -678,13 +688,9 @@ body {
     height: 10em;
     grid-row: 4;
     grid-column: 1 / span 2;
-    overflow-y: scroll;
-}
-
-#pdf-col #pdf-log .pdf-log-content {
-    width: 100%;
-    overflow-y: scroll;
-    padding: 0.5rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
 }
 
 /* PDF Controls */

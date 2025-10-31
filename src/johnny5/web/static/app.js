@@ -1195,36 +1195,76 @@ class Johnny5Viewer {
         try { console.log('[ruler] right drawn'); } catch { }
     }
 
+    addLogEntry(arg1, message, level = 'info') {
+        // Supports two call styles:
+        // 1) addLogEntry('left'|'right', message, level)
+        // 2) addLogEntry(html)
 
+        // Determine mode
+        const isPaneMode = (arg1 === 'left' || arg1 === 'right');
 
-    addLogEntry(pane, message, level = 'info') {
-        const logContent = document.getElementById(`${pane}-log-content`);
-        const logEntry = document.createElement('div');
-        logEntry.className = `log-entry ${level}`;
+        if (isPaneMode) {
+            const pane = arg1;
+            // Map 'left' -> 'pdf-log-content', 'right' -> 'rec-log-content'
+            const id = pane === 'left' ? 'pdf-log-content' : 'rec-log-content';
+            const el = document.getElementById(id);
+            if (!el) return;
+            const container = el.parentElement; // scroll container (e.g., #pdf-log)
+            if (!container) return;
 
-        const timestamp = new Date().toLocaleTimeString();
-        logEntry.textContent = `[${timestamp}] ${message}`;
+            const tolerance = 4;
+            const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - tolerance;
 
-        logContent.appendChild(logEntry);
+            const entry = document.createElement('div');
+            entry.className = `pdf-log-entry ${level}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            el.appendChild(entry);
 
-        // Always scroll to bottom - locked at the end
-        logContent.scrollTop = logContent.scrollHeight;
+            if (atBottom) {
+                requestAnimationFrame(() => {
+                    container.scrollTop = container.scrollHeight;
+                });
+            }
+            return;
+        }
 
-        // Keep only last 100 entries
-        while (logContent.children.length > 100) {
-            logContent.removeChild(logContent.firstChild);
+        // Raw HTML mode for preformatted chunks
+        const html = arg1;
+        const el = document.querySelector('#pdf-log .pdf-log-content');
+        if (!el) return;
+        const container = el.parentElement; // #pdf-log
+        if (!container) return;
+
+        const tolerance = 4;
+        const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - tolerance;
+
+        const entry = document.createElement('div');
+        entry.className = 'pdf-log-entry';
+        entry.innerHTML = html;
+        el.appendChild(entry);
+
+        if (atBottom) {
+            requestAnimationFrame(() => {
+                container.scrollTop = container.scrollHeight;
+            });
+        }
+    }
+      
+    clearLog(pane) {
+        const id = pane === 'left' ? 'pdf-log-content' : 'rec-log-content';
+        const logContent = document.getElementById(id);
+        if (logContent) {
+            logContent.innerHTML = '<div class="log-entry">Log cleared</div>';
         }
     }
 
-    clearLog(pane) {
-        const logContent = document.getElementById(`${pane}-log-content`);
-        logContent.innerHTML = '<div class="log-entry">Log cleared</div>';
-    }
-
     scrollLogToBottom(pane) {
-        const logContent = document.getElementById(`${pane}-log-content`);
-        if (logContent) {
-            logContent.scrollTop = logContent.scrollHeight;
+        const id = pane === 'left' ? 'pdf-log-content' : 'rec-log-content';
+        const logContent = document.getElementById(id);
+        if (logContent && logContent.parentElement) {
+            const container = logContent.parentElement;
+            container.scrollTop = container.scrollHeight;
         }
     }
 
@@ -1611,11 +1651,3 @@ class Johnny5Viewer {
 document.addEventListener('DOMContentLoaded', () => {
     new Johnny5Viewer();
 });
-
-function appendPdfLog(html) {
-    const el = document.getElementById('pdf-log');
-    if (!el) return;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
-    el.insertAdjacentHTML('beforeend', html);
-    if (atBottom) el.scrollTop = el.scrollHeight;
-}
