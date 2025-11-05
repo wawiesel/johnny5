@@ -5,6 +5,10 @@ Add to the bottom. Do not reorder.
 Removed in the PR when they are complete.
 There are other things to do of course, this is not an exhaustive list.
 
+## Fix disassembly refresh
+
+## Fix z-ordering
+
 ## Enable caching system
 
 Implement the content-based caching system described in @SPEC.md:
