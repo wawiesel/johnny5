@@ -11,10 +11,10 @@ def test_version() -> None:
 
 def test_package_imports() -> None:
     """Test that all main functions can be imported"""
-    from johnny5 import main, run_decompose, json_to_qmd, json_to_html, run_web
+    from johnny5 import main, run_disassemble, json_to_qmd, json_to_html, run_web
 
     assert main is not None
-    assert run_decompose is not None
+    assert run_disassemble is not None
     assert json_to_qmd is not None
     assert json_to_html is not None
     assert run_web is not None
@@ -30,13 +30,13 @@ def test_cli_group() -> None:
     assert "web" in cli_main.commands
 
 
-def test_decomposer_placeholder() -> None:
-    """Test decomposer placeholder functionality"""
-    from johnny5.decomposer import run_decompose
+def test_disassembler_api() -> None:
+    """Test disassembler API and signature"""
+    from johnny5.disassembler import run_disassemble
     import inspect
 
     # Test that the function exists and has the right signature
-    sig = inspect.signature(run_decompose)
+    sig = inspect.signature(run_disassemble)
     assert "pdf" in sig.parameters
     assert "layout_model" in sig.parameters
     assert "enable_ocr" in sig.parameters
