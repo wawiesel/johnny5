@@ -1,5 +1,5 @@
 // Johnny5 Web Viewer JavaScript
-/* global FormData, localStorage */
+/* global FormData, localStorage, ThemeToggle */
 
 // (helper removed)
 

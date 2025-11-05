@@ -105,10 +105,9 @@ test.describe('Disassemble (no fixup) workflow', () => {
 
   test('label toggles are displayed and functional', async ({ page }) => {
     await page.goto('http://127.0.0.1:5173/');
-    
-    // Wait for structure data to load
-    await page.waitForSelector('.ann-toggles-container', { timeout: 10000 });
-    await page.waitForTimeout(2000);
+    // Wait for annotation data and toggles to render
+    await waitForAnnotationData(page);
+    await page.waitForSelector('.ann-toggles-container', { timeout: 15000 });
     
     // Check for label checkboxes
     const checkboxes = page.locator('.ann-toggles-container input[type="checkbox"]');
@@ -127,7 +126,7 @@ test.describe('Disassemble (no fixup) workflow', () => {
       const hasCode = await toggleRow.locator('.ann-code').count();
       const hasName = await toggleRow.locator('.ann-toggle-row-name').count();
       
-      // Should have either code or name (or both)
+      // Should have either code or name (or both); be lenient if checkbox is a group controller
       expect(hasCode + hasName).toBeGreaterThan(0);
       
       // Test toggle functionality - uncheck first checkbox (skip none/all checkbox)
