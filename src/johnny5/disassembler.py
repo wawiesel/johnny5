@@ -1,6 +1,6 @@
-"""Johnny5 Decomposer - PDF to JSON conversion using Docling
+"""Johnny5 Disassembler - PDF to JSON conversion using Docling
 
-This module handles the core PDF decomposition workflow:
+This module handles the core PDF disassembly workflow:
 1. PDF → Docling → lossless JSON
 2. Apply fixup processing (hot-reloadable)
 3. Save corrected JSON to _cache/
@@ -10,34 +10,42 @@ import json
 import logging
 import importlib
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from docling.document_converter import DocumentConverter
+from docling.document_converter import DocumentConverter, FormatOption
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 from .utils.margins import analyze_page_margins
-from .utils.density import (
-    compute_horizontal_density,
-    compute_vertical_density,
-    compute_density_arrays,
-    calculate_document_resolution,
-)
+from .utils.density import calculate_density
 from .utils.fixup_context import FixupContext
+from .utils.cache import (
+    generate_disassemble_cache_key,
+    get_cached_file,
+    save_to_cache,
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
-def run_decompose(
+def run_disassemble(
     pdf: Path,
     layout_model: str,
     enable_ocr: bool,
     json_dpi: int,
     fixup: str,
-) -> Path:
+) -> str:
     """
-    Convert a PDF into Docling lossless JSON, apply fixups, and write corrected output.
+    Convert a PDF into Docling lossless JSON with content-based caching.
+
+    This function implements cache-first behavior:
+    1. Generate cache key from PDF content + Docling options
+    2. Check if cache exists for this key
+    3. If cache hit: Return cache key (no processing needed)
+    4. If cache miss: Run Docling, save to cache, return cache key
 
     Args:
         pdf: Path to the PDF file to process
@@ -47,58 +55,55 @@ def run_decompose(
         fixup: Module path for fixup processing (hot-reloadable)
 
     Returns:
-        Path to the corrected JSON file (_cache/lossless_fixed.json)
+        16-character cache key identifying the cached structure JSON
 
     Raises:
         FileNotFoundError: If PDF file doesn't exist
-        ImportError: If fixup module can't be imported
         ValueError: If PDF processing fails
     """
-    logger.info(f"Starting PDF decomposition: {pdf}")
+    logger.info(f"Starting PDF disassembly: {pdf}")
     logger.info(f"Layout model: {layout_model}, OCR: {enable_ocr}, DPI: {json_dpi}")
 
     # Validate input
     if not pdf.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf}")
 
-    # Create cache directory
-    cache_dir = Path("_cache")
-    cache_dir.mkdir(exist_ok=True)
+    # Step 1: Generate cache key from PDF content + Docling options
+    cache_key, pdf_checksum = generate_disassemble_cache_key(
+        pdf, layout_model, enable_ocr, json_dpi
+    )
+    logger.info(f"Cache key: {cache_key}")
+    logger.info(f"PDF checksum: {pdf_checksum}")
 
-    # Step 1: Convert PDF to lossless JSON using Docling
-    logger.info("Converting PDF to lossless JSON using Docling")
-    lossless_json_path = cache_dir / "lossless.json"
+    # Step 2: Check if cache exists
+    cached_file = get_cached_file(cache_key, "structure")
+    if cached_file is not None:
+        logger.info(f"Cache hit! Using cached result: {cached_file}")
+        logger.info("Skipping Docling conversion (already processed)")
+        return cache_key
+
+    # Step 3: Cache miss - run Docling conversion
+    logger.info("Cache miss - running Docling conversion")
 
     try:
-        docling_result = _run_docling_conversion(pdf, layout_model, enable_ocr, json_dpi)
-        _write_json(docling_result, lossless_json_path)
-        logger.info(f"Raw Docling output saved to: {lossless_json_path}")
+        docling_result = _run_docling_conversion(
+            pdf, layout_model, enable_ocr, json_dpi, pdf_checksum
+        )
+
+        # Save to cache with cache key as filename
+        cache_file = save_to_cache(docling_result, cache_key, "structure")
+        logger.info(f"Docling output saved to cache: {cache_file}")
 
     except Exception as e:
         logger.error(f"Docling conversion failed: {e}")
         raise ValueError(f"PDF processing failed: {e}") from e
 
-    # Step 2: Apply fixup processing
-    logger.info(f"Applying fixup processing: {fixup}")
-    corrected_json_path = cache_dir / "lossless_fixed.json"
-
-    try:
-        corrected_result = _apply_fixup_rules(docling_result, fixup, pdf)
-        _write_json(corrected_result, corrected_json_path)
-        logger.info(f"Corrected output saved to: {corrected_json_path}")
-
-    except Exception as e:
-        logger.error(f"Fixup processing failed: {e}")
-        # Fallback: copy raw output as corrected
-        _write_json(docling_result, corrected_json_path)
-        logger.warning("Using raw Docling output as fallback")
-
-    logger.info("PDF decomposition completed successfully")
-    return corrected_json_path
+    logger.info("PDF disassembly completed successfully")
+    return cache_key
 
 
 def _run_docling_conversion(
-    pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int
+    pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, pdf_checksum: str
 ) -> Dict[str, Any]:
     """
     Convert PDF to lossless JSON using Docling DocumentConverter.
@@ -108,130 +113,164 @@ def _run_docling_conversion(
         layout_model: Layout model to use
         enable_ocr: Whether to enable OCR
         json_dpi: DPI for JSON output
+        pdf_checksum: SHA-256 checksum of the PDF file
 
     Returns:
         Dictionary containing Docling's lossless JSON structure
     """
     logger.debug(f"Initializing Docling converter with model: {layout_model}")
 
-    # Configure pipeline options
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_ocr = enable_ocr
-    pipeline_options.do_table_structure = True
-    pipeline_options.table_structure_options.do_cell_matching = True
-
-    # Initialize converter
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: pipeline_options,
-        },
+    # Configure FormatOption for PDF with all required parameters
+    pdf_opts = FormatOption(
+        format="lossless-json",
+        include_layout=True,
+        layout_model=layout_model,
+        enable_ocr=enable_ocr,
+        dpi=json_dpi,
+        backend=PyPdfiumDocumentBackend,
+        pipeline_cls=StandardPdfPipeline,
     )
+
+    # Initialize converter with FormatOption
+    converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opts})
 
     # Convert document
     logger.debug("Running Docling conversion")
     result = converter.convert(str(pdf))
 
-    # Extract the document structure
-    doc = result.document
+    # Extract the document structure - use model_dump() to get the full structure
+    doc_dict = result.model_dump()
 
-    # Build our JSON structure
-    json_data = {
-        "metadata": {
-            "source_pdf": str(pdf),
-            "layout_model": layout_model,
-            "ocr_enabled": enable_ocr,
-            "json_dpi": json_dpi,
-            "docling_version": getattr(converter, "__version__", "unknown"),
-            "processing_timestamp": result.timestamp.isoformat() if result.timestamp else None,
-        },
-        "pages": [],
-        "structure": {
-            "tables": [],
-            "figures": [],
-            "text_blocks": [],
-        },
+    # Build metadata and extract pages from Docling's structure
+    # Convert to file:// URI (absolute path)
+    pdf_uri = pdf.resolve().as_uri()
+
+    metadata: Dict[str, Any] = {
+        "source_pdf": pdf_uri,
+        "_checksum": pdf_checksum,
+        "layout_model": layout_model,
+        "ocr_enabled": enable_ocr,
+        "json_dpi": json_dpi,
     }
 
-    # Calculate document-wide resolution for density arrays
-    # We need to collect all elements first to calculate resolution
-    all_pages_data = []
-    for page_idx, page in enumerate(doc.pages):
+    pages = cast(List[Dict[str, Any]], doc_dict.get("pages", []))
+
+    pages_data: List[Dict[str, Any]] = []
+    for page_idx, page_dict in enumerate(pages):
         logger.debug(f"Processing page {page_idx + 1}")
 
-        page_data = {
+        # Get page dimensions from page size
+        size = page_dict.get("size", {})
+        if isinstance(size, dict):
+            width = size.get("width", 612)
+            height = size.get("height", 792)
+        else:
+            width = 612
+            height = 792
+
+        page_data: Dict[str, Any] = {
             "page_number": page_idx + 1,
-            "width": page.width,
-            "height": page.height,
+            "width": width,
+            "height": height,
             "elements": [],
         }
 
-        # Process page elements
-        for element in page.elements:
-            element_data = _extract_element_data(element, page_idx + 1)
+        # Process page predictions/layout to extract elements
+        predictions = page_dict.get("predictions", {})
+        layout = predictions.get("layout", {})
+        clusters = layout.get("clusters", [])
+
+        page_elements = cast(List[Dict[str, Any]], page_data["elements"])
+        for cluster in clusters:
+            element_data = _extract_element_data_from_cluster(cluster, page_idx + 1, width, height)
             if element_data:
-                page_data["elements"].append(element_data)
+                page_elements.append(element_data)
 
-        all_pages_data.append(page_data)
+        pages_data.append(page_data)
 
-    # Calculate document-wide resolution
-    doc_resolution = calculate_document_resolution(all_pages_data)
-    logger.debug(f"Document resolution for density arrays: {doc_resolution}")
-
-    # Now process each page with density arrays
-    for page_data in all_pages_data:
+    # Now process each page with density profiles
+    for page_data in pages_data:
         # Analyze page-level properties
-        page_data["margins"] = analyze_page_margins(page_data["elements"])
-        page_data["horizontal_density"] = compute_horizontal_density(page_data["elements"])
-        page_data["vertical_density"] = compute_vertical_density(page_data["elements"])
+        elements = cast(List[Dict[str, Any]], page_data["elements"])
+        page_data["margins"] = analyze_page_margins(elements)
 
-        # Compute density arrays for visualization
-        x_density, y_density = compute_density_arrays(
-            page_data["elements"], page_data["width"], page_data["height"], doc_resolution
-        )
-        page_data["_density"] = {"x": x_density, "y": y_density, "resolution": doc_resolution}
+        # Compute density profiles for visualization
+        x_profile = calculate_density(elements, page_data["width"], page_data["height"], "x")
+        y_profile = calculate_density(elements, page_data["width"], page_data["height"], "y")
+        page_data["_density"] = {
+            "x": x_profile,
+            "y": y_profile,
+        }
 
-        json_data["pages"].append(page_data)
+    structure = _extract_document_structure(pages_data)
 
-    # Extract structural information
-    json_data["structure"] = _extract_document_structure(json_data["pages"])
+    json_data: Dict[str, Any] = {
+        "metadata": metadata,
+        "pages": pages_data,
+        "structure": structure,
+    }
 
-    logger.info(f"Successfully converted PDF with {len(json_data['pages'])} pages")
+    logger.info(f"Successfully converted PDF with {len(pages_data)} pages")
     return json_data
 
 
-def _extract_element_data(element: Any, page_number: int) -> Optional[Dict[str, Any]]:
+def _extract_element_data_from_cluster(
+    cluster: Dict[str, Any], page_number: int, page_width: float, page_height: float
+) -> Optional[Dict[str, Any]]:
     """
-    Extract structured data from a Docling element.
+    Extract structured data from a Docling cluster (from lossless JSON format).
 
     Args:
-        element: Docling element object
+        cluster: Docling cluster dictionary
         page_number: Page number for context
+        page_width: Page width in points
+        page_height: Page height in points
 
     Returns:
         Dictionary containing element data, or None if element should be skipped
     """
     try:
+        # Extract label/type
+        label = cluster.get("label", "unknown")
+
+        # Extract bounding box
+        bbox_dict = cluster.get("bbox", {})
+        if isinstance(bbox_dict, dict):
+            # Format: {"l": left, "t": top, "r": right, "b": bottom}
+            x0 = bbox_dict.get("l", 0)
+            y0 = bbox_dict.get("t", 0)
+            x1 = bbox_dict.get("r", page_width)
+            y1 = bbox_dict.get("b", page_height)
+        elif isinstance(bbox_dict, list) and len(bbox_dict) == 4:
+            x0, y0, x1, y1 = bbox_dict
+        else:
+            return None
+
         element_data = {
-            "type": element.label,
+            "type": label,
             "page": page_number,
-            "bbox": [element.bbox.x0, element.bbox.y0, element.bbox.x1, element.bbox.y1],
-            "confidence": getattr(element, "confidence", 1.0),
+            "bbox": [x0, y0, x1, y1],
+            "confidence": cluster.get("confidence", 1.0),
         }
 
-        # Extract content based on element type
-        if hasattr(element, "text") and element.text:
-            element_data["content"] = element.text.strip()
-
-        if hasattr(element, "table") and element.table:
-            element_data["table"] = _extract_table_data(element.table)
-
-        if hasattr(element, "figure") and element.figure:
-            element_data["figure"] = _extract_figure_data(element.figure)
+        # Extract text content
+        if "text" in cluster:
+            element_data["content"] = str(cluster["text"]).strip()
+        elif "cells" in cluster:
+            # Extract text from cells
+            text_parts = []
+            for cell in cluster.get("cells", []):
+                if isinstance(cell, dict) and "text" in cell:
+                    text_parts.append(cell["text"])
+                elif isinstance(cell, str):
+                    text_parts.append(cell)
+            if text_parts:
+                element_data["content"] = " ".join(text_parts)
 
         return element_data
 
     except Exception as e:
-        logger.warning(f"Failed to extract element data: {e}")
+        logger.warning(f"Failed to extract element data from cluster: {e}")
         return None
 
 
@@ -271,7 +310,7 @@ def _extract_document_structure(pages: List[Dict[str, Any]]) -> Dict[str, List[D
     Returns:
         Dictionary containing tables, figures, and text blocks
     """
-    structure = {
+    structure: Dict[str, List[Dict[str, Any]]] = {
         "tables": [],
         "figures": [],
         "text_blocks": [],
@@ -343,11 +382,17 @@ def _apply_fixup_rules(docling_result: Dict[str, Any], fixup: str, pdf: Path) ->
 
         # Apply fixup processing
         logger.debug("Applying fixup processing to document")
-        corrected_result = module.apply_fixup(context)
+        corrected_result_raw = module.apply_fixup(context)
 
-        if corrected_result is None:
+        if corrected_result_raw is None:
             logger.warning("Fixup module returned None, using original result")
             return docling_result
+
+        if not isinstance(corrected_result_raw, dict):
+            logger.warning("Fixup module returned non-dict result, using original result")
+            return docling_result
+
+        corrected_result = cast(Dict[str, Any], corrected_result_raw)
 
         # Recompute density arrays for corrected result
         logger.debug("Recomputing density arrays after fixup")
@@ -367,23 +412,24 @@ def _apply_fixup_rules(docling_result: Dict[str, Any], fixup: str, pdf: Path) ->
 
 def _recompute_density_arrays(result: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Recompute density arrays after fixup processing.
+    Recompute density profiles after fixup processing.
 
     Args:
         result: Document result (may be modified by fixup)
 
     Returns:
-        Result with updated density arrays
+        Result with updated density profiles
     """
-    # Calculate document-wide resolution
-    doc_resolution = calculate_document_resolution(result["pages"])
-
-    # Update density arrays for each page
-    for page_data in result["pages"]:
-        x_density, y_density = compute_density_arrays(
-            page_data["elements"], page_data["width"], page_data["height"], doc_resolution
-        )
-        page_data["_density"] = {"x": x_density, "y": y_density, "resolution": doc_resolution}
+    # Update density profiles for each page
+    pages = cast(List[Dict[str, Any]], result["pages"])
+    for page_data in pages:
+        elements = cast(List[Dict[str, Any]], page_data["elements"])
+        x_profile = calculate_density(elements, page_data["width"], page_data["height"], "x")
+        y_profile = calculate_density(elements, page_data["width"], page_data["height"], "y")
+        page_data["_density"] = {
+            "x": x_profile,
+            "y": y_profile,
+        }
 
     return result
 

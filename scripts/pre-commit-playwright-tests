@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Run Playwright end-to-end tests as part of the pre-commit hook.
+# Ensures the FastAPI test server and required node/python dependencies exist.
+
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT_DIR"
+
+if ! command -v npx >/dev/null 2>&1; then
+    echo "❌ Playwright pre-commit: npx not found. Install Node.js / npm first." >&2
+    exit 1
+fi
+
+if [ ! -d "node_modules" ]; then
+    echo "❌ Playwright pre-commit: node_modules missing. Run 'npm install' before committing." >&2
+    exit 1
+fi
+
+if [ ! -x "./venv/bin/uvicorn" ]; then
+    echo "❌ Playwright pre-commit: ./venv/bin/uvicorn not found or not executable." >&2
+    echo "   Create the virtualenv and install Python dependencies before committing." >&2
+    exit 1
+fi
+
+echo "🎭 Running Playwright end-to-end tests..."
+# Use reporter=line to keep hook output compact.
+PLAYWRIGHT_HTML_REPORT=0 npx --yes playwright test --reporter=line
+echo "✅ Playwright tests passed"

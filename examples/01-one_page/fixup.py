@@ -121,10 +121,10 @@ def _fix_basic_bbox(element: Dict[str, Any]) -> Dict[str, Any]:
 def _sort_elements_by_position(elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Sort elements by their vertical position (top to bottom)."""
 
-    def get_y_position(element):
+    def get_y_position(element: Dict[str, Any]) -> float:
         bbox = element.get("bbox", [])
         if len(bbox) >= 2:
-            return bbox[1]  # y1 coordinate
-        return 0
+            return float(bbox[1])  # y1 coordinate
+        return 0.0
 
     return sorted(elements, key=get_y_position, reverse=True)  # Reverse for top-to-bottom

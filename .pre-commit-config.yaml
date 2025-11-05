@@ -10,6 +10,12 @@ repos:
       - id: mypy
   - repo: local
     hooks:
+      - id: playwright-tests
+        name: Playwright E2E Tests
+        entry: bash scripts/pre-commit-playwright-tests
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: validate-example-readmes
         name: Validate Example README Commands
         entry: bash scripts/pre-commit-hook

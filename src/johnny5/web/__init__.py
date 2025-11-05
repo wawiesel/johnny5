@@ -1,3 +1,3 @@
 """Johnny5 web package"""
 
-__all__ = []
+__all__: list[str] = []

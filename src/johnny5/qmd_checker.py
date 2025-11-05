@@ -7,7 +7,7 @@ including table alignment validation and other formatting checks.
 
 import re
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 
 class QMDChecker:
@@ -16,7 +16,7 @@ class QMDChecker:
     def __init__(self, file_path: Path):
         self.file_path = file_path
         self.content = self._read_file()
-        self.issues: List[Dict[str, Any]] = []
+        self.issues: List[str] = []
 
     def _read_file(self) -> str:
         """Read the QMD file content."""
@@ -29,23 +29,30 @@ class QMDChecker:
 
     def check_all(self) -> Dict[str, Any]:
         """Run all quality checks."""
-        results = {"file": str(self.file_path), "issues": [], "checks": {}}
+        issues: List[str] = []
+        checks: Dict[str, Dict[str, Any]] = {}
+        results: Dict[str, Any] = {
+            "file": str(self.file_path),
+            "issues": issues,
+            "checks": checks,
+        }
 
         # Run individual checks
-        results["checks"]["table_alignment"] = self.check_table_alignment()
-        results["checks"]["yaml_frontmatter"] = self.check_yaml_frontmatter()
-        results["checks"]["markdown_syntax"] = self.check_markdown_syntax()
+        checks["table_alignment"] = self.check_table_alignment()
+        checks["yaml_frontmatter"] = self.check_yaml_frontmatter()
+        checks["markdown_syntax"] = self.check_markdown_syntax()
 
         # Collect all issues
-        for check_name, check_result in results["checks"].items():
-            if check_result["issues"]:
-                results["issues"].extend(check_result["issues"])
+        for check_result in checks.values():
+            check_issues = check_result.get("issues", [])
+            if isinstance(check_issues, list):
+                issues.extend(str(issue) for issue in check_issues)
 
         return results
 
     def check_table_alignment(self) -> Dict[str, Any]:
         """Check if tables have properly aligned columns."""
-        issues: List[Dict[str, Any]] = []
+        issues: List[str] = []
         tables_found = 0
         tables_aligned = 0
 

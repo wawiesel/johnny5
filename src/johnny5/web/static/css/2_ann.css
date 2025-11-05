@@ -1,0 +1,260 @@
+/* Annotations column children */
+
+#ann-col #ann-progress {
+    grid-row: 1;
+    grid-column: 1;
+    position: relative;
+    z-index: 20;
+    background-color: var(--surface-3);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+}
+
+#ann-col #ann-list {
+    background-color: var(--ann-bg);
+    position: relative;
+    overflow: hidden; /* Disable scrolling - synced with PDF viewer */
+    padding: 0;
+    display: block;
+    grid-row: 2;
+    grid-column: 1;
+    pointer-events: none; /* Prevent direct interaction, scroll is synced */
+}
+
+/* Scroll disabled - synced with PDF viewer */
+
+#annotation-list {
+    position: relative;
+    width: 100%;
+    pointer-events: auto; /* Allow interaction with annotation items */
+}
+
+#ann-list-grid-stack {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+    /* No z-index - stays behind items (document order determines stacking) */
+}
+
+#ann-list-grid-stack .pdf-page-break-margin {
+    display: block;
+    width: 100%;
+    height: 24px;
+    background: var(--pdf-page-gap-color);
+}
+
+#ann-col #ann-toggles {
+    background-color: var(--ann-bg);
+    padding: 0;
+    align-items: flex-start;
+    justify-content: flex-start;
+    display: flex;
+    flex-direction: column;
+    grid-row: 3;
+    grid-column: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%; /* Constrain to grid row height */
+    min-height: 0; /* Allow shrinking */
+    z-index: 20;
+}
+
+.ann-toggles-resize-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background-color: var(--accent-soft);
+    cursor: ns-resize;
+    z-index: 8;
+    transition: background-color 0.2s;
+}
+
+.ann-toggles-resize-handle:hover {
+    background-color: var(--accent-strong-bg);
+}
+
+/* Override 0_layout.css #ann-col * { overflow: hidden; } with higher specificity */
+#ann-col .ann-toggles-container {
+    width: 100%;
+    flex: 1 1 0; /* Use 0 instead of auto to allow flex shrinking */
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem; /* Vertical spacing between rows */
+    overflow-y: auto !important; /* Override 0_layout.css global rule */
+    overflow-x: hidden !important;
+    padding: 0.25rem 0.25rem; /* Reduced horizontal padding */
+    min-height: 0; /* Critical for flex scrolling */
+    margin-top: 4px; /* Space for resize handle */
+}
+
+/* rows within ann-toggles
+|
+| [ checkbox | code | name ]
+| [ checkbox | code | name ]
+|
+*/
+.ann-toggle-row {
+    display: grid;
+    grid-template-columns: 10px auto 1fr;
+    gap: 0.2rem; /* Horizontal spacing between columns */
+    align-items: center;
+    padding: 0.1rem 0.2rem; /* Vertical | Horizontal padding inside item */
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    cursor: pointer;
+    font-size: 0.62rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+    line-height: 1.2;
+    box-sizing: border-box;
+    min-height: 1.5em;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--shadow-inset-light);
+}
+
+.ann-toggle-row:hover,
+.ann-toggle-row.hover-sync {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent-medium);
+}
+
+.ann-toggle-row.selected {
+    border-width: 2px;
+    border-color: var(--accent);
+    background: var(--accent-selected-bg);
+}
+
+.ann-none-all-toggle {
+    grid-template-columns: 10px 1fr; /* Match other rows: checkbox column + spacer, but no code/name */
+    border: none; /* No border around none/all toggle */
+    background: transparent; /* No background */
+    padding: 0.1rem 0.2rem; /* Same padding as other rows */
+}
+
+/* checkbox within row
+|
+| [checkbox] | code | name |
+*/
+.ann-toggle-row-checkbox {
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+    width: 11px; /* 20% smaller than 14px */
+    height: 11px;
+    accent-color: var(--accent);
+    grid-column: 1;
+    justify-self: start;
+}
+
+.ann-none-all-toggle .ann-toggle-row-checkbox {
+    accent-color: var(--accent); /* Same as other checkboxes */
+    justify-self: start; /* Left aligned like other rows */
+    width: 9px; /* Smaller than regular checkboxes (11px) */
+    height: 9px;
+}
+
+
+/* name within row
+|
+| checkbox | code | [name] |
+*/
+.ann-toggle-row-name {
+    font-size: 0.6rem;
+    text-align: left;
+    grid-column: 3;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.ann-toggle-row-name.hover-sync {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ann-toggle-row-name.selected {
+    font-weight: 700;
+    color: var(--accent-strong);
+}
+
+/* For none/all, hide code and name columns */
+.ann-none-all-toggle .ann-code,
+.ann-none-all-toggle .ann-toggle-row-name {
+    display: none;
+}
+
+/* items within ann-list
+|
+| -- [code]
+| 
+*/
+.ann-list-item {
+    position: absolute;
+    left: 0;
+    width: auto;
+    height: auto;
+    display: inline-block;
+    transform: translateY(-50%); /* Center vertically on midpoint */
+    cursor: pointer;
+    /* No extra geometry - invisible container for ann-code */
+    background: transparent;
+    border: none;
+    padding: 10px;
+    margin: 0;
+    /* No z-index - document order determines stacking */
+    /* top is set dynamically in JS based on PDF position */
+    opacity: var(--label-opacity);
+}
+
+
+/* Shared code box styling for both ann-toggles and ann-list */
+.ann-code {
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+    min-width: 4ch;
+    min-height: 2ch;
+    text-align: center;
+    border: 1px solid var(--border-subtle);
+    border-radius: 2px;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer; /* Inherited by clickable parents, but explicit for clarity */
+    /* Color set via --code-color CSS variable from JavaScript, always fully opaque */
+    background-color: var(--code-color);
+    color: var(--code-text);
+    transition: border-width 0.2s ease;
+}
+
+/* Limit label opacity control to items rendered in the annotation list (legend/toggles unaffected) */
+#ann-list .ann-code {
+    opacity: var(--label-opacity);
+}
+
+.ann-code.hover-sync {
+    border-width: 2px;
+}
+
+.ann-code.selected {
+    border-width: 2px;
+    border-color: var(--accent);
+}
+
+/* Grid-specific positioning for ann-toggles */
+.ann-toggle-row .ann-code {
+    grid-column: 2;
+    justify-self: center;
+}

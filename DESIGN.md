@@ -93,6 +93,41 @@ PDF (input)
 - Static under `web/static`, templates under `web/templates`.
 - Assumes local files exist; serves visualization and debugging tools.
 
+#### 2.4.1 Web Viewer Architecture
+The JavaScript codebase is organized into modular classes that follow a consistent pattern:
+- Each module is a class that takes the main `viewer` instance as a constructor parameter
+- Modules communicate through the shared `viewer` object, accessing properties and other modules via `this.viewer`
+- The main `Johnny5Viewer` class orchestrates all modules and maintains the public API
+
+**Module Structure:**
+- `utils.js` - Utility functions (DOM helpers, color helpers, drawing helpers)
+- `theme-manager.js` - Theme switching and indicator state management
+- `logging.js` - Log entry management and clipboard functionality
+- `connection-lines.js` - Connection lines between PDF annotations and list items
+- `label-toggles.js` - Label toggle UI and filtering functionality
+- `grid-rulers.js` - Grid and ruler drawing for all panels
+- `annotations.js` - Annotation rendering and management
+- `pdf-loader.js` - PDF loading, data management, and WebSocket connections
+- `pdf-renderer.js` - PDF rendering and canvas management with virtualization
+- `density-charts.js` - Density chart rendering and scrolling (existing module)
+- `app.js` - Main orchestrator that initializes modules and delegates methods
+
+**Script Loading Order:**
+Modules must be loaded in dependency order before `app.js` because:
+1. JavaScript classes must be defined before they can be instantiated
+2. The main `Johnny5Viewer` constructor instantiates all modules synchronously
+3. Modules reference each other through the shared `viewer` object, so all class definitions must exist
+
+The HTML loads scripts in this order: utils → theme-manager → logging → connection-lines → grid-rulers → annotations → label-toggles → pdf-renderer → pdf-loader → density-charts → app.js
+
+**Initialization Flow:**
+1. `Johnny5Viewer` constructor creates all module instances
+2. `init()` method sets up PDF.js, theme toggle, event listeners, and WebSocket
+3. `loadServerPDF()` loads the PDF and renders pages
+4. `renderAllPages()` draws all grids and rulers (PDF grid, Y-density grid, X-density grid, annotations grid, annotation list grid)
+5. If disassembly data is available, `loadAllPageData()` loads annotations and density charts
+6. Grids are redrawn after data loads to ensure synchronization
+
 ### 2.5 watcher.py
 - `watch_fixups(paths: list[Path], on_change: Callable[[], None])`
 - Debounce 250–500 ms. Broadcast WS event after successful re-fixup.
@@ -123,6 +158,7 @@ See SPEC.md for error handling specifications. Implementation follows the struct
 * Page rasterization via PyMuPDF directly; cache pixmaps by `(page, dpi)`.
 * Density/margin computations vectorized with NumPy where beneficial.
 * Avoid re-parsing PDF when only fixups change.
+* **Dynamic/Lazy Loading**: Grid overlays, density charts, and page canvases must be loaded on-demand (one page at a time) to support large PDFs (e.g., 2000+ pages) without exhausting memory. Canvas elements are created per-page and can be garbage collected when scrolled out of view.
 
 ## 6. Security
 

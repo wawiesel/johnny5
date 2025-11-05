@@ -76,6 +76,32 @@ The pre-commit hooks will also validate example README files by running the comm
 
 ---
 
+## 🎨 Frontend (CSS/JavaScript) Guidelines
+
+### CSS Z-Index
+* **All z-index values must be in CSS only** - never set z-index in JavaScript.
+* Use a consistent hierarchy:
+  * `1-2`: Base layers (PDF pages, density charts, grids)
+  * `3-5`: Annotations and connection lines
+  * `8-10`: UI panels and controls
+  * `100+`: Interactive elements (buttons, overlays)
+  * `1000+`: Selected/hovered annotations
+  * `10000+`: Top-level UI overlays (controls, navigation)
+
+### CSS Colors
+* **All colors must use CSS variables** - no hardcoded colors (no `#000000`, `grey`, `rgb()`, etc.).
+* **CSS variables are mandatory** - do not provide fallback defaults (use `var(--surface-1)`, not `var(--surface-1, #000000)`).
+* All color values must be defined in `web/static/css/color/*.css` theme files.
+
+### CSS vs JavaScript
+* **Static styles belong in CSS** - only dynamic values (calculated from measurements, positions, etc.) should be set in JavaScript.
+* Examples:
+  * ✅ CSS: `position: absolute; top: 0; pointer-events: none;`
+  * ✅ JavaScript: `canvas.style.left = \`${pageLeftInRow}px\`;` (dynamic position)
+  * ❌ JavaScript: `canvas.style.position = 'absolute';` (static, should be in CSS)
+
+---
+
 ## ✅ Summary
 
 All code, whether by humans or automation, must:
