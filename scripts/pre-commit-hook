@@ -171,4 +171,14 @@ else
     echo "✅ All example README commands validated successfully!"
 fi
 
+# Optionally run Playwright e2e tests if the helper script exists
+if [ -x "$ROOT_DIR/scripts/pre-commit-playwright-tests" ]; then
+    echo ""
+    echo "🎭 Running Playwright tests via helper script"
+    if ! "$ROOT_DIR/scripts/pre-commit-playwright-tests"; then
+        echo "❌ Playwright tests failed"
+        exit 1
+    fi
+fi
+
 exit 0
