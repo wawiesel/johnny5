@@ -34,9 +34,6 @@ def fixup(structure: Dict[str, Any]) -> Dict[str, Any]:
         # Apply basic text element fixes
         elements = _fix_text_elements(elements)
 
-        # Sort elements by position (top to bottom)
-        elements = _sort_elements_by_position(elements)
-
         # Update the page with fixed elements
         page["elements"] = elements
 
@@ -116,15 +113,3 @@ def _fix_basic_bbox(element: Dict[str, Any]) -> Dict[str, Any]:
             element["bbox"] = [x1, y1, x1 + 100, y1 + 15]
 
     return element
-
-
-def _sort_elements_by_position(elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Sort elements by their vertical position (top to bottom)."""
-
-    def get_y_position(element: Dict[str, Any]) -> float:
-        bbox = element.get("bbox", [])
-        if len(bbox) >= 2:
-            return float(bbox[1])  # y1 coordinate
-        return 0.0
-
-    return sorted(elements, key=get_y_position, reverse=True)  # Reverse for top-to-bottom

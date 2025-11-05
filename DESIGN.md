@@ -100,30 +100,16 @@ The JavaScript codebase is organized into modular classes that follow a consiste
 - The main `Johnny5Viewer` class orchestrates all modules and maintains the public API
 
 **Module Structure:**
-- `utils.js` - Utility functions (DOM helpers, color helpers, drawing helpers)
-- `theme-manager.js` - Theme switching and indicator state management
-- `logging.js` - Log entry management and clipboard functionality
-- `connection-lines.js` - Connection lines between PDF annotations and list items
-- `label-toggles.js` - Label toggle UI and filtering functionality
-- `grid-rulers.js` - Grid and ruler drawing for all panels
-- `annotations.js` - Annotation rendering and management
-- `pdf-loader.js` - PDF loading, data management, and WebSocket connections
-- `pdf-renderer.js` - PDF rendering and canvas management with virtualization
-- `density-charts.js` - Density chart rendering and scrolling (existing module)
-- `app.js` - Main orchestrator that initializes modules and delegates methods
+- `app.js` - Main orchestrator containing all viewer functionality
+- `density-charts.js` - Density chart rendering and scrolling (separate module)
+- `resize.js` - Resize handling utilities
 
-**Script Loading Order:**
-Modules must be loaded in dependency order before `app.js` because:
-1. JavaScript classes must be defined before they can be instantiated
-2. The main `Johnny5Viewer` constructor instantiates all modules synchronously
-3. Modules reference each other through the shared `viewer` object, so all class definitions must exist
-
-The HTML loads scripts in this order: utils → theme-manager → logging → connection-lines → grid-rulers → annotations → label-toggles → pdf-renderer → pdf-loader → density-charts → app.js
+All core functionality (PDF loading, rendering, annotations, grids, rulers, connection lines, label toggles, logging, theme management) is implemented within the `Johnny5Viewer` class in `app.js`.
 
 **Initialization Flow:**
-1. `Johnny5Viewer` constructor creates all module instances
+1. `Johnny5Viewer` constructor initializes internal state and creates the `DensityCharts` instance
 2. `init()` method sets up PDF.js, theme toggle, event listeners, and WebSocket
-3. `loadServerPDF()` loads the PDF and renders pages
+3. `loadPDFFromServer()` loads the PDF and renders pages
 4. `renderAllPages()` draws all grids and rulers (PDF grid, Y-density grid, X-density grid, annotations grid, annotation list grid)
 5. If disassembly data is available, `loadAllPageData()` loads annotations and density charts
 6. Grids are redrawn after data loads to ensure synchronization

@@ -180,18 +180,9 @@ Note: Additional indicators for intermediate stages (e.g., fixup/extract) may be
 
 #### Naming Convention for Web UI IDs
 
-IDs match the current implementation and use `pdf-*`, `ann-*`, and `rec-*` prefixes.
+IDs use `pdf-*`, `ann-*`, and `rec-*` prefixes for the three main columns.
 
-- PDF Column (left):
-  - `dark-mode-selector` – theme toggle (replaces original image indicator)
-  - `pdf-x-density` – top X-density banner; contains `x-density-chart`
-  - `pdf-y-density` – left Y-density sidebar (canvases created dynamically)
-  - `pdf-viewer` – main viewing area containing:
-    - `pdf-scroller` → `pdf-canvas-container` → `pdf-canvas`
-    - `overlay-container` – annotations overlay
-    - Zoom controls: `zoom-in`, `zoom-out`, `fit-width`, `fit-height`, `zoom-level`
-    - `page-count-overlay`
-  - `pdf-options` – left options panel (collapsible via `pdf-options-cb` / `pdf-options-toggle`)
+- PDF Column: Contains theme selector, density charts, viewer with zoom controls, and options panel
   - `pdf-log` – left log panel (resizable via `.pdf-log-resize-handle`)
 
 - Annotations Column (middle):
