@@ -22,6 +22,11 @@ There are other things to do of course, this is not an exhaustive list.
 ## Fix playwright tests
 
 - Strengthen Playwright tests for z-order and interaction precedence.
+- Restore green CI runs without `--no-verify` by fixing linters:
+  - ESLint (e.g., undefined `ThemeToggle` in `src/johnny5/web/static/app.js`)
+  - Ruff / Ruff-format (Python style)
+  - mypy (add missing annotations, avoid untyped calls)
+- Ensure pre-commit passes locally and in CI without skipping hooks.
 
 ## Enable caching system
 
