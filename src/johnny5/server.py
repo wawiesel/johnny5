@@ -2,21 +2,42 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
-from typing import Awaitable, Callable, MutableMapping
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, MutableMapping, Optional, Union, cast
 
 from fastapi import FastAPI, Request, Response, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 JSONDict = Dict[str, Any]
 
 
-class DisassembleOptions(BaseModel):
+class DisassembleOptions(BaseModel):  # type: ignore[misc]
     """Request body for disassemble-refresh endpoint"""
 
-    layout_model: str = "pubtables"
-    enable_ocr: bool = False
-    json_dpi: int = 144
+    layout_model: str = Field(default="pubtables", alias="layoutModel")
+    enable_ocr: bool = Field(default=False, alias="enableOcr")
+    json_dpi: int = Field(default=144, alias="jsonDpi")
+
+    @field_validator("layout_model")  # type: ignore[misc]
+    @classmethod
+    def validate_layout_model(cls, v: str) -> str:
+        from .disassembler import verify_layout_model
+
+        if not verify_layout_model(v):
+            valid_models = ["doclaynet", "pubtables", "digitaldocmodel", "tableformer"]
+            raise ValueError(
+                f"Invalid layout model '{v}'. Valid models are: {', '.join(valid_models)}"
+            )
+        return v
+
+    @field_validator("json_dpi")  # type: ignore[misc]
+    @classmethod
+    def validate_dpi(cls, v: int) -> int:
+        if v < 72 or v > 600:
+            raise ValueError(f"DPI must be between 72 and 600, got {v}")
+        return v
+
+    class Config:
+        populate_by_name = True  # Allow both snake_case and camelCase
 
 
 def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -> FastAPI:
@@ -33,16 +54,20 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     Returns:
         Configured FastAPI application instance
     """
-    from fastapi import WebSocket, WebSocketDisconnect
     from fastapi.staticfiles import StaticFiles
     from fastapi.templating import Jinja2Templates
-    from fastapi.responses import HTMLResponse, FileResponse
+    from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
     import json
     import logging
     import asyncio
     import shutil
-    from .disassembler import run_disassemble
-    from .utils.cache import get_cache_path, get_cache_dir
+    from .disassembler import run_disassemble, get_available_layout_models
+    from .utils.cache import (
+        get_cache_path,
+        get_cache_dir,
+        generate_disassemble_cache_key,
+        get_cached_file,
+    )
 
     app = FastAPI(title="Johnny5 Web Viewer")
 
@@ -50,11 +75,11 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     disassembly_logger = logging.getLogger("johnny5.disassembly")
     reconstruction_logger = logging.getLogger("johnny5.reconstruction")
 
-    # Store active WebSocket connections
-    active_connections: Dict[str, WebSocket] = {}
-
     # Store the main event loop for thread-safe async operations
     main_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    # SSE message queue - messages sent from background threads to connected clients
+    sse_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
 
     # Store structure data in memory (no cache dependency)
     structure_data: JSONDict = {}
@@ -134,18 +159,19 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_status["message"] = f"Disassembly completed for {pdf_path.name}"
             disassembly_status["completed_at"] = datetime.now().isoformat()
 
-            # Notify all connected clients via WebSocket
+            # Notify all connected clients via SSE
             notification = {
                 "type": "disassembly_complete",
                 "status": "completed",
                 "message": disassembly_status["message"],
                 "log_file": str(log_file),
+                "options": {
+                    "layoutModel": options.layout_model,
+                    "enableOcr": options.enable_ocr,
+                    "jsonDpi": options.json_dpi,
+                },
             }
-            for conn_id, websocket in list(active_connections.items()):
-                try:
-                    await websocket.send_text(json.dumps(notification))
-                except Exception:
-                    del active_connections[conn_id]
+            await sse_queue.put(notification)
 
             server_logger.info("Disassembly completed successfully")
             print("✅ Disassembly completed successfully")
@@ -209,7 +235,86 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
         """Get current disassembly status for client polling"""
         return disassembly_status.copy()
 
-    @app.get("/api/structure/{page}")
+    @app.get("/api/layout-models")  # type: ignore[misc]
+    async def get_layout_models() -> JSONDict:
+        """Get available Docling layout models with descriptions"""
+        models = get_available_layout_models()
+        return {"models": models}
+
+    @app.post("/api/check-cache")  # type: ignore[misc]
+    async def check_cache(options: DisassembleOptions) -> JSONDict:
+        """Check if cache exists for given options and return cache key"""
+        server_logger = logging.getLogger("johnny5.server")
+        try:
+            # Generate cache key for these options
+            cache_key, _ = generate_disassemble_cache_key(
+                current_pdf_path,
+                options.layout_model,
+                options.enable_ocr,
+                options.json_dpi,
+            )
+
+            # Check if cache file exists
+            cached_file = get_cached_file(cache_key, "structure")
+
+            return {
+                "cache_exists": cached_file is not None,
+                "cache_key": cache_key if cached_file else None,
+                "options": {
+                    "layout_model": options.layout_model,
+                    "enable_ocr": options.enable_ocr,
+                    "json_dpi": options.json_dpi,
+                },
+            }
+        except Exception as e:
+            server_logger.error(f"Error checking cache: {e}")
+            return {"cache_exists": False, "cache_key": None, "error": str(e)}
+
+    @app.post("/api/load-cache")  # type: ignore[misc]
+    async def load_cache(options: DisassembleOptions) -> JSONDict:
+        """Load structure data from cache for given options"""
+        server_logger = logging.getLogger("johnny5.server")
+        try:
+            # Generate cache key for these options
+            cache_key, _ = generate_disassemble_cache_key(
+                current_pdf_path,
+                options.layout_model,
+                options.enable_ocr,
+                options.json_dpi,
+            )
+
+            # Get cache path
+            json_path = get_cache_path(cache_key, "structure")
+
+            if not json_path.exists():
+                return {
+                    "success": False,
+                    "error": "Cache not found for these options",
+                    "cache_key": cache_key,
+                }
+
+            # Load the structure data
+            load_structure_data(json_path)
+
+            server_logger.info(
+                f"Loaded cache {cache_key} for layout={options.layout_model}, ocr={options.enable_ocr}, dpi={options.json_dpi}"
+            )
+
+            return {
+                "success": True,
+                "cache_key": cache_key,
+                "pages": len(structure_data.get("pages", [])),
+                "options": {
+                    "layout_model": options.layout_model,
+                    "enable_ocr": options.enable_ocr,
+                    "json_dpi": options.json_dpi,
+                },
+            }
+        except Exception as e:
+            server_logger.error(f"Error loading cache: {e}")
+            return {"success": False, "error": str(e)}
+
+    @app.get("/api/structure/{page}")  # type: ignore[misc]
     async def get_structure(page: int) -> JSONDict:
         """Get structure data for a specific page"""
         server_logger = logging.getLogger("johnny5.server")
@@ -379,33 +484,40 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_logger.error(f"Disassembly refresh failed: {error_msg}", exc_info=True)
             return {"success": False, "error": error_msg}
 
-    @app.websocket("/logs")
-    async def websocket_logs(websocket: WebSocket) -> None:
-        """WebSocket endpoint for streaming logs"""
-        try:
-            await websocket.accept()
-            connection_id = f"conn_{len(active_connections)}"
-            active_connections[connection_id] = websocket
-            print(f"[WebSocket] Client connected: {connection_id}")
+    @app.get("/api/events")  # type: ignore[misc]
+    async def sse_events() -> StreamingResponse:
+        """Server-Sent Events endpoint for streaming logs and updates"""
 
-            try:
-                while True:
-                    # Keep connection alive
-                    await websocket.receive_text()
-            except WebSocketDisconnect:
-                print(f"[WebSocket] Client disconnected: {connection_id}")
-                if connection_id in active_connections:
-                    del active_connections[connection_id]
-        except Exception as e:
-            print(f"[WebSocket] Connection error: {e}")
-            import traceback
+        async def event_generator() -> AsyncGenerator[str, None]:
+            # Send initial connection message
+            yield f"data: {json.dumps({'pane': 'left', 'level': 'INFO', 'message': 'Connected to event stream'})}\n\n"
 
-            traceback.print_exc()
+            while True:
+                try:
+                    # Wait for messages from the queue
+                    message = await asyncio.wait_for(sse_queue.get(), timeout=30.0)
+                    yield f"data: {json.dumps(message)}\n\n"
+                except asyncio.TimeoutError:
+                    # Send keepalive comment every 30 seconds
+                    yield ": keepalive\n\n"
+                except Exception as e:
+                    print(f"[SSE] Error sending message: {e}")
+                    break
 
-    # Custom log handler to send logs to WebSocket clients
-    class WebSocketLogHandler(logging.Handler):
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable nginx buffering
+            },
+        )
+
+    # Custom log handler to send logs to SSE clients
+    class SSELogHandler(logging.Handler):
         def emit(self, record: logging.LogRecord) -> None:
-            nonlocal main_loop
+            nonlocal main_loop, sse_queue
 
             log_entry = {
                 "timestamp": record.created,
@@ -424,35 +536,16 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
 
             log_entry["pane"] = pane
 
-            # Debug: print to console
-            print(f"[WS Log] {record.name}: {record.getMessage()}")
-
-            # Send to all active connections using thread-safe method
-            if main_loop and active_connections:
-                print(f"[WS Log] Sending to {len(active_connections)} connection(s)")
-
-                async def send_log():
-                    for conn_id, websocket in list(active_connections.items()):
-                        try:
-                            await websocket.send_text(json.dumps(log_entry))
-                        except Exception as e:
-                            print(f"[WS Log] Failed to send to {conn_id}: {e}")
-                            # Remove dead connections
-                            if conn_id in active_connections:
-                                del active_connections[conn_id]
-
+            # Send to SSE queue using thread-safe method
+            if main_loop:
                 try:
-                    asyncio.run_coroutine_threadsafe(send_log(), main_loop)
-                except Exception as e:
-                    print(f"[WS Log] Failed to schedule send: {e}")
-            else:
-                if not main_loop:
-                    print("[WS Log] No main_loop available")
-                if not active_connections:
-                    print("[WS Log] No active connections")
+                    asyncio.run_coroutine_threadsafe(sse_queue.put(log_entry), main_loop)
+                except Exception:
+                    # Silently fail - SSE is optional
+                    pass
 
     # Add the custom handler to the root johnny5 logger to catch all submodules
-    handler = WebSocketLogHandler()
+    handler = SSELogHandler()
     handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
@@ -466,10 +559,10 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     disassembly_logger.setLevel(logging.DEBUG)
     reconstruction_logger.setLevel(logging.DEBUG)
 
-    # Startup event to trigger background disassembly
-    @app.on_event("startup")
-    async def startup_disassembly() -> None:
-        """Run disassembly in background after server starts (if PDF is set)"""
+    # Startup event to capture event loop and trigger disassembly
+    @app.on_event("startup")  # type: ignore[misc]
+    async def startup_init() -> None:
+        """Initialize server - capture event loop for SSE logging and trigger disassembly"""
         nonlocal main_loop
 
         # Capture the main event loop for thread-safe async operations
@@ -486,6 +579,8 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             print(f"🔄 Starting disassembly in background for: {pdf_path}")
             default_options = DisassembleOptions()
             asyncio.create_task(run_disassembly_background(pdf_path, fixup_module, default_options))
+        # Note: Disassembly is also triggered by frontend auto-refresh after SSE connects
+        # This ensures logs are streamed to the connected client
 
     # Store helper functions as app state for testing/external access
     app.state.load_structure_data = load_structure_data
@@ -528,7 +623,9 @@ def run_web(pdf: Union[str, Path], port: int, fixup: str, color_scheme: str = "d
 
     print(f"🚀 Starting Johnny5 web viewer on http://localhost:{port}")
     print("📄 PDF will be viewable immediately, annotations will appear when disassembly completes")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+
+    # Bind to localhost for local development (WebSocket origin validation works better)
+    uvicorn.run(app, host="127.0.0.1", port=port)
 
 
 # Module-level app for Playwright tests (uses environment variables)

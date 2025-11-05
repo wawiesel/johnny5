@@ -511,3 +511,102 @@ def apply_fixups(content: Dict[str, Any], fixup: str) -> Dict[str, Any]:
         Corrected content after fixup processing
     """
     return _apply_fixup_rules(content, fixup, Path("unknown.pdf"))
+
+
+def get_available_layout_models() -> List[Dict[str, str]]:
+    """
+    Get list of available Docling layout models with descriptions.
+
+    Returns:
+        List of dicts with 'name' and 'description' keys
+    """
+    models = [
+        {
+            "name": "doclaynet",
+            "description": "Fast - General document layout detection",
+        },
+        {
+            "name": "pubtables",
+            "description": "Accurate - Optimized for tables and publications",
+        },
+        {
+            "name": "digitaldocmodel",
+            "description": "Digital documents - Born-digital PDFs",
+        },
+        {
+            "name": "tableformer",
+            "description": "Table structure - Specialized table parsing",
+        },
+    ]
+    return models
+
+
+def get_available_ocr_engines() -> List[Dict[str, str]]:
+    """
+    Get list of available OCR engines with descriptions.
+
+    Returns:
+        List of dicts with 'name' and 'description' keys
+    """
+    engines = [
+        {
+            "name": "none",
+            "description": "No OCR - Text extraction only",
+        },
+        {
+            "name": "auto",
+            "description": "Automatic - Let Docling choose best engine",
+        },
+        {
+            "name": "easyocr",
+            "description": "EasyOCR - Deep learning based",
+        },
+        {
+            "name": "rapidocr",
+            "description": "RapidOCR - Fast and lightweight",
+        },
+        {
+            "name": "tesseract",
+            "description": "Tesseract CLI - Traditional OCR",
+        },
+        {
+            "name": "tesserocr",
+            "description": "Tesseract Python - Python binding",
+        },
+        {
+            "name": "ocrmac",
+            "description": "OCRmac - macOS Vision framework",
+        },
+    ]
+    return engines
+
+
+def get_docling_version() -> str:
+    """Get the current Docling version.
+
+    Returns:
+        Version string (e.g., '2.58.0')
+    """
+    import importlib.metadata
+
+    return importlib.metadata.version("docling")
+
+
+def verify_layout_model(model_name: str) -> bool:
+    """
+    Verify that a layout model is available and can be instantiated.
+
+    Args:
+        model_name: Name of the layout model to verify
+
+    Returns:
+        True if model is valid and can be used, False otherwise
+    """
+    try:
+        # Check against known valid models
+        # Docling doesn't validate model names until runtime, so we maintain a list
+        valid_models = [m["name"] for m in get_available_layout_models()]
+        return model_name in valid_models
+    except Exception as e:
+        logger.warning(f"Layout model '{model_name}' validation failed: {e}")
+        return False

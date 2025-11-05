@@ -105,6 +105,8 @@ def get_cache_dir(stage: str) -> Path:
 def get_cached_file(cache_key: str, stage: str, extension: str = "json") -> Optional[Path]:
     """Check if a cached file exists for the given cache key.
 
+    Automatically cleans up cache files older than 2 days during lookup.
+
     Args:
         cache_key: 16-character cache key
         stage: Cache stage ('structure', 'content', 'qmd')
@@ -117,6 +119,9 @@ def get_cached_file(cache_key: str, stage: str, extension: str = "json") -> Opti
         >>> get_cached_file('a1b2c3d4e5f6g7h8', 'structure')
         Path('/Users/ww5/.jny5/cache/structure/a1b2c3d4e5f6g7h8.json')
     """
+    # Clean up old cache files (2 day max age)
+    _cleanup_old_cache_files(max_age_days=2)
+
     cache_dir = get_cache_dir(stage)
     cache_file = cache_dir / f"{cache_key}.{extension}"
     return cache_file if cache_file.exists() else None
@@ -249,3 +254,38 @@ def generate_fixup_cache_key(structure_cache_key: str, fixup_path: Optional[Path
         return structure_cache_key
 
     return generate_cache_key(structure_file, fixup_path)
+
+
+def _cleanup_old_cache_files(max_age_days: int = 2) -> None:
+    """Clean cache files older than specified age (internal, called automatically).
+
+    Args:
+        max_age_days: Maximum age in days for cache files (default: 2)
+    """
+    import time
+
+    jny5_home = Path(os.environ.get("JNY5_HOME", str(Path.home() / ".jny5")))
+    cache_home = jny5_home / "cache"
+    max_age_seconds = max_age_days * 24 * 60 * 60
+    cutoff_time = time.time() - max_age_seconds
+
+    # Check all cache subdirectories
+    cache_dirs = ["structure", "fixup", "extract", "reconstruct", "logs"]
+
+    for cache_type in cache_dirs:
+        cache_dir = cache_home / cache_type
+        if not cache_dir.exists():
+            continue
+
+        for cache_file in cache_dir.iterdir():
+            if not cache_file.is_file():
+                continue
+
+            # Get file modification time and delete if older than max age
+            try:
+                mtime = cache_file.stat().st_mtime
+                if mtime < cutoff_time:
+                    cache_file.unlink()
+            except (OSError, IOError):
+                # Skip files we can't access or delete
+                continue

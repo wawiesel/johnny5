@@ -9,7 +9,7 @@ class Johnny5Viewer {
         this.currentPage = 1;
         this.totalPages = 0;
         this.scale = 1.0;
-        this.websocket = null;
+        this.eventSource = null;
         this.allStructureData = {}; // Store structure data for all pages
         this.allDensityData = {}; // Store density data for all pages
         this.loadedPages = new Set(); // Track which pages have been loaded
@@ -153,6 +153,46 @@ class Johnny5Viewer {
         }
     }
 
+    async populateLayoutModels(selectElement) {
+        try {
+            const response = await fetch('/api/layout-models');
+            const data = await response.json();
+
+            if (data.models && Array.isArray(data.models)) {
+                // Clear existing options
+                selectElement.innerHTML = '';
+
+                // Add each model as an option with description in title
+                data.models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.name;
+                    option.title = model.description;
+                    selectElement.appendChild(option);
+                });
+
+                // Set default value from settings or use 'pubtables'
+                const defaultModel = (window.J5.settings.docling?.layoutModel) || 'pubtables';
+                if (selectElement.querySelector(`option[value="${defaultModel}"]`)) {
+                    selectElement.value = defaultModel;
+                } else {
+                    selectElement.value = data.models[0]?.name || 'pubtables';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load layout models:', error);
+            // Fallback to hardcoded list
+            const fallbackModels = ['pubtables', 'doclaynet'];
+            fallbackModels.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                selectElement.appendChild(option);
+            });
+            selectElement.value = 'pubtables';
+        }
+    }
+
     async triggerAutoRefresh() {
         // Trigger automatic disassembly refresh on page load
         try {
@@ -174,7 +214,7 @@ class Johnny5Viewer {
                 throw new Error(result.error || 'Auto-refresh failed');
             }
 
-            // Success - WebSocket will handle completion and update indicator to green
+            // Success - SSE will handle completion and update indicator to green
         } catch (error) {
             this.addPdfLogEntry(`Auto-refresh failed: ${error.message}`, 'error');
             this.updateRefreshIndicator('error');
@@ -205,8 +245,8 @@ class Johnny5Viewer {
         // Setup event listeners
         this.setupEventListeners();
 
-        // Connect to WebSocket for logs
-        this.connectWebSocket();
+        // Connect to SSE for logs
+        this.connectEventStream();
 
         // Load PDF from server (from CLI command)
         await this.loadServerPDF();
@@ -491,9 +531,8 @@ class Johnny5Viewer {
                 layoutLabel.textContent = 'Layout';
                 const layoutSelect = document.createElement('select');
                 layoutSelect.id = 'docling-layout-select';
-                // Docling layout models (include pubtables which we've been using)
-                ;['pubtables','doclaynet'].forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;layoutSelect.appendChild(o)});
-                layoutSelect.value = (window.J5.settings.docling?.layoutModel) || 'pubtables';
+                // Populate dynamically from backend
+                this.populateLayoutModels(layoutSelect);
                 layoutGroup.appendChild(layoutLabel);
                 layoutGroup.appendChild(layoutSelect);
                 subRow.appendChild(layoutGroup);
@@ -528,8 +567,47 @@ class Johnny5Viewer {
                 dpiGroup.appendChild(dpiInput);
                 subRow.appendChild(dpiGroup);
 
-                // Set up change listeners to update indicator
-                const onOptionChange = () => this.checkAndUpdateIndicator();
+                // Set up change listeners to check cache and load if available
+                const onOptionChange = async () => {
+                    const options = this.getCurrentDoclingOptions();
+
+                    // Check if these options match what's currently loaded
+                    if (this.optionsMatch(options, this.loadedDoclingOptions)) {
+                        this.updateRefreshIndicator('up-to-date');
+                        return;
+                    }
+
+                    // Options changed - try to load from cache
+                    try {
+                        const response = await fetch('/api/load-cache', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(options)
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            // Cache loaded successfully - update state and reload page data
+                            this.addPdfLogEntry(
+                                `Loaded ${result.options.layout_model} (${result.pages} pages) from cache`,
+                                'info'
+                            );
+                            this.loadedDoclingOptions = options;
+                            this.updateRefreshIndicator('up-to-date');
+
+                            // Reload all page data with new structure
+                            await this.loadAllPageData();
+                        } else {
+                            // No cache - show red indicator (needs processing)
+                            this.updateRefreshIndicator('needs-run');
+                        }
+                    } catch (error) {
+                        console.error('Error loading cache:', error);
+                        this.updateRefreshIndicator('needs-run');
+                    }
+                };
+
                 layoutSelect.addEventListener('change', onOptionChange);
                 ocrCheckbox.addEventListener('change', onOptionChange);
                 dpiInput.addEventListener('change', onOptionChange);
@@ -557,8 +635,8 @@ class Johnny5Viewer {
 
                             const result = await response.json();
                             if (result.success) {
-                                // Refresh started - WebSocket will trigger loadAllPageData() when disassembly completes
-                                // Indicator will be updated to 'up-to-date' when WebSocket confirms completion
+                                // Refresh started - SSE will trigger loadAllPageData() when disassembly completes
+                                // Indicator will be updated to 'up-to-date' when SSE confirms completion
                             } else {
                                 throw new Error(result.error || 'Disassembly refresh failed');
                             }
@@ -722,32 +800,16 @@ class Johnny5Viewer {
         });
     }
 
-    connectWebSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    connectEventStream() {
+        this.addPdfLogEntry('Connecting to event stream...', 'info');
 
-        // Fix: 0.0.0.0 is not valid for WebSocket connections, use localhost instead
-        let host = window.location.host;
-        if (host.startsWith('0.0.0.0:')) {
-            host = host.replace('0.0.0.0:', 'localhost:');
-        }
+        this.eventSource = new EventSource('/api/events');
 
-        const wsUrl = `${protocol}//${host}/logs`;
-        this.addPdfLogEntry(`Connecting to WebSocket: ${wsUrl}`, 'info');
-
-        this.websocket = new WebSocket(wsUrl);
-        let websocketConnected = false;
-
-        this.websocket.onopen = () => {
-            websocketConnected = true;
-            this.addPdfLogEntry('WebSocket connected', 'info');
-            // Clear any polling fallback since WebSocket is working
-            if (this.disassemblyPollInterval) {
-                clearInterval(this.disassemblyPollInterval);
-                this.disassemblyPollInterval = null;
-            }
+        this.eventSource.onopen = () => {
+            this.addPdfLogEntry('Event stream connected', 'info');
         };
 
-        this.websocket.onmessage = (event) => {
+        this.eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
 
@@ -760,8 +822,17 @@ class Johnny5Viewer {
                         this.addPdfLogEntry(`Full log: ${data.log_file}`, 'info');
                     }
 
-                    // Update loaded options and indicator to up-to-date
-                    this.loadedDoclingOptions = this.getCurrentDoclingOptions();
+                    // Update loaded options from server notification (what was actually processed)
+                    if (data.options) {
+                        this.loadedDoclingOptions = data.options;
+                        this.addPdfLogEntry(
+                            `Loaded: ${data.options.layoutModel}, OCR: ${data.options.enableOcr}, DPI: ${data.options.jsonDpi}`,
+                            'info'
+                        );
+                    } else {
+                        // Fallback to current options if not provided
+                        this.loadedDoclingOptions = this.getCurrentDoclingOptions();
+                    }
                     this.updateRefreshIndicator('up-to-date');
 
                     // Clear polling if active
@@ -787,24 +858,13 @@ class Johnny5Viewer {
                     }
                 }
             } catch (e) {
-                this.addPdfLogEntry(`WebSocket message parse error: ${e.message}`, 'error');
+                this.addPdfLogEntry(`Event parse error: ${e.message}`, 'error');
             }
         };
 
-        this.websocket.onclose = () => {
-            this.addPdfLogEntry('WebSocket disconnected', 'warning');
-            // If WebSocket closed and we're waiting for disassembly, start polling fallback
-            if (!websocketConnected && this.disassemblyPollInterval === null) {
-                this.startDisassemblyPolling();
-            }
-        };
-
-        this.websocket.onerror = (error) => {
-            this.addPdfLogEntry(`WebSocket error: ${error.type || 'connection failed'}`, 'error');
-            // If WebSocket fails and we're waiting for disassembly, start polling fallback
-            if (!websocketConnected && this.disassemblyPollInterval === null) {
-                this.startDisassemblyPolling();
-            }
+        this.eventSource.onerror = (error) => {
+            this.addPdfLogEntry('Event stream error - will auto-reconnect', 'warning');
+            // EventSource automatically reconnects
         };
     }
 
