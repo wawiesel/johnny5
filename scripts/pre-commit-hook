@@ -50,6 +50,39 @@ else
 fi
 
 echo ""
+echo "🧪 Running Python tests and linters (venv required)"
+
+# Ensure we run using the project's virtualenv when present
+VENV_BIN="$ROOT_DIR/venv/bin"
+if [ -x "$VENV_BIN/python" ]; then
+    echo "▶ Pytest"
+    if ! (cd "$ROOT_DIR" && "$VENV_BIN/python" -m pytest -q); then
+        echo "❌ Pytest failed"
+        exit 1
+    else
+        echo "✅ Pytest passed"
+    fi
+
+    echo "▶ Ruff"
+    if ! (cd "$ROOT_DIR" && "$VENV_BIN/ruff" check .); then
+        echo "❌ Ruff failed"
+        exit 1
+    else
+        echo "✅ Ruff passed"
+    fi
+
+    echo "▶ mypy"
+    if ! (cd "$ROOT_DIR" && "$VENV_BIN/mypy" src tests); then
+        echo "❌ mypy failed"
+        exit 1
+    else
+        echo "✅ mypy passed"
+    fi
+else
+    echo "ℹ️  venv not found at $VENV_BIN (skipping Python checks)."
+fi
+
+echo ""
 echo "🔍 Running pre-commit validation for example README files..."
 
 # Find all README.md files in examples/*/ directories
