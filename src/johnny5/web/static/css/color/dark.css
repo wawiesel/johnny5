@@ -28,7 +28,8 @@
     --density-fill: rgba(255, 99, 177, 0.4);
     --y-density-bg: var(--surface-2);
     --x-density-bg: var(--surface-2);
-    --ann-bg: var(--surface-2);
+    --ann-list-bg: var(--surface-2);
+    --ann-toggles-bg: var(--surface-2);
     --overlay-bg: rgba(0, 0, 0, 0.3);
     --overlay-bg-hover: rgba(0, 0, 0, 0.7);
     --error-color: #ff6b6b;

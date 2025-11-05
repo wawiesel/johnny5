@@ -1,10 +1,10 @@
 /* Annotations column children */
 
-#ann-col #ann-progress {
+/* ann-progress in chrome grid */
+#ann-col-chrome #ann-progress {
     grid-row: 1;
     grid-column: 1;
     position: relative;
-    z-index: 10; /* UI panels and controls (8-10) */
     background-color: var(--surface-3);
     color: var(--text-primary);
     display: flex;
@@ -15,8 +15,9 @@
     font-size: 0.75rem;
 }
 
+/* ann-list in content grid */
 #ann-col #ann-list {
-    background-color: var(--ann-bg);
+    background-color: var(--ann-list-bg);
     position: relative;
     overflow: hidden; /* Disable scrolling - synced with PDF viewer */
     padding: 0;
@@ -50,8 +51,9 @@
     background: var(--pdf-page-gap-color);
 }
 
-#ann-col #ann-toggles {
-    background-color: var(--ann-bg);
+/* ann-toggles in chrome grid */
+#ann-col-chrome #ann-toggles {
+    background-color: var(--ann-toggles-bg);
     padding: 0;
     align-items: flex-start;
     justify-content: flex-start;
@@ -63,7 +65,6 @@
     position: relative;
     height: 100%; /* Constrain to grid row height */
     min-height: 0; /* Allow shrinking */
-    z-index: 10; /* UI panels and controls (8-10) */
 }
 
 .ann-toggles-resize-handle {
@@ -71,19 +72,25 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 4px;
-    background-color: var(--accent-soft);
+    height: 6px;
+    background: linear-gradient(to bottom,
+        var(--border-strong) 0%,
+        var(--border-strong) 33%,
+        transparent 33%,
+        transparent 66%,
+        var(--border-strong) 66%,
+        var(--border-strong) 100%);
     cursor: ns-resize;
     z-index: 8;
-    transition: background-color 0.2s;
+    transition: background 0.2s;
 }
 
 .ann-toggles-resize-handle:hover {
-    background-color: var(--accent-strong-bg);
+    background: var(--accent-strong);
 }
 
-/* Override 0_layout.css #ann-col * { overflow: hidden; } with higher specificity */
-#ann-col .ann-toggles-container {
+/* Override 0_layout.css #ann-col-chrome * { overflow: hidden; } with higher specificity */
+#ann-col-chrome .ann-toggles-container {
     width: 100%;
     flex: 1 1 0; /* Use 0 instead of auto to allow flex shrinking */
     display: flex;
@@ -93,7 +100,7 @@
     overflow-x: hidden !important;
     padding: 0.25rem 0.25rem; /* Reduced horizontal padding */
     min-height: 0; /* Critical for flex scrolling */
-    margin-top: 4px; /* Space for resize handle */
+    margin-top: 6px; /* Space for resize handle */
 }
 
 /* rows within ann-toggles

@@ -71,29 +71,96 @@ PDF (input)
   - Returns new cache key for downstream use
 
 ### 2.4 server.py
-- FastAPI (async) serving local files and visualization tools:
-  - `GET /` → Johnny5 Web Interface with split-pane layout:
-    - **Left Pane (Disassembly)**: 
-      - X-Density banner above PDF with image indicators (d: original document, p: fixup JSON)
-      - Y-Density banner to left of PDF
-      - Annotated PDF with toggleable bounding boxes in center
-      - Right gutter with annotations connected to bounding boxes
-      - Terminal-like disassembly log at bottom
-    - **Right Pane (Reconstruction)**:
-      - X-Density banner above content with image indicator (q: content.json)
-      - Y-Density banner to right of content
-      - JSON/QMD/HTML Tabs with reconstructed output
-      - Terminal-like reconstruction log at bottom
-    - **Shared vertical scroll bar** for synchronized scrolling
-  - `GET /doc` → metadata (page count, sizes).
-  - `GET /pages/{n}/image?dpi=...` → raster via PyMuPDF (no quality loss controls in Matplotlib).
-  - `GET /overlays/{n}` → clusters, colors, callouts.
-  - `GET /density/{n}` → x/y density arrays + inferred margins.
-  - `WS /events` → `{"type":"reload","page":n}` on fixup refresh.
-- Static under `web/static`, templates under `web/templates`.
-- Assumes local files exist; serves visualization and debugging tools.
+FastAPI (async) serving local files and visualization tools:
+- **Web Interface**: Three-column layout (PDF | Annotations | Reconstruction) with synchronized scrolling. See §2.4.1 for detailed architecture.
+- **REST API**:
+  - `GET /` → Johnny5 Web Interface
+  - `GET /doc` → metadata (page count, sizes)
+  - `GET /pages/{n}/image?dpi=...` → raster via PyMuPDF
+  - `GET /overlays/{n}` → clusters, colors, callouts
+  - `GET /density/{n}` → x/y density arrays + inferred margins
+- **WebSocket**: `WS /events` → `{"type":"reload","page":n}` on fixup refresh
+- Static files under `web/static`, templates under `web/templates`
 
 #### 2.4.1 Web Viewer Architecture
+
+##### HTML/CSS Layout Architecture
+
+The web viewer uses a **three-layer stacking architecture** to manage visual layering between content, connection lines, and UI chrome:
+
+**Layer 1: Content Grid (z-index: 10)**
+```html
+<div class="content-grid">
+  <div id="pdf-col">
+    <div id="pdf-viewer">...</div>
+  </div>
+  <div id="ann-col">
+    <div id="ann-list">...</div>
+  </div>
+  <div id="rec-col">
+    <div id="rec-viewer">...</div>
+  </div>
+</div>
+```
+- Contains primary content viewers (PDF, annotations, reconstructed content)
+- Positioned with `position: relative; z-index: 10`
+- Connection lines render above this layer
+
+**Layer 2: SVG Overlay (z-index: 15)**
+```html
+<svg id="connection-lines-overlay"></svg>
+```
+- Connection lines between PDF bounding boxes and annotation list
+- Positioned with `position: absolute; z-index: 15; pointer-events: none`
+- Individual lines have `pointer-events: auto` for interaction
+
+**Layer 3: Chrome Grid (z-index: 20)**
+```html
+<div class="chrome-grid">
+  <div id="pdf-col-chrome">
+    <div id="color-mode-selector">...</div>
+    <div id="pdf-x-density">...</div>
+    <div id="pdf-y-density">...</div>
+    <div id="pdf-options">...</div>
+    <div id="pdf-log">...</div>
+  </div>
+  <div id="ann-col-chrome">
+    <div id="ann-progress">...</div>
+    <div id="ann-toggles">...</div>
+  </div>
+  <div id="rec-col-chrome">
+    <div id="rec-x-density">...</div>
+    <div id="rec-indicator">...</div>
+    <div id="rec-y-density">...</div>
+    <div id="rec-options">...</div>
+    <div id="rec-log">...</div>
+  </div>
+</div>
+```
+- UI chrome (density panels, controls, logs, toggles)
+- Positioned with `position: absolute; z-index: 20; pointer-events: none`
+- Chrome column containers (`#pdf-col-chrome`, etc.) have `position: relative; z-index: 20` to promote them into the positioned stacking context
+- Individual chrome elements have `pointer-events: auto` for interaction
+- Connection lines render below this layer
+
+**Grid Alignment:**
+- Both content-grid and chrome-grid use identical CSS grid definitions: `grid-template-columns: minmax(0, 1fr) 18ch minmax(0, 1fr)`
+- This ensures chrome elements automatically align with their corresponding content areas without manual positioning
+
+**Design Rationale:**
+- **Architectural clarity**: HTML structure explicitly shows the three visual layers
+- **Centralized z-index management**: All stacking logic in one place (`0_layout.css`)
+- **Automatic chrome behavior**: New chrome elements inherit z-index: 20 by being in chrome-grid
+- **Maintainability**: Future developers can see layering intent from structure and comments
+- **Debuggability**: DevTools layer visualization matches HTML structure
+
+**Important Implementation Notes:**
+- Chrome backgrounds must be **fully opaque** for proper visual layering. Semi-transparent backgrounds allow connection lines to show through despite correct z-index stacking.
+- Debug color scheme uses opaque colors: `--x-density-bg`, `--y-density-bg`, `--ann-list-bg`, `--ann-toggles-bg` all have alpha=1.0
+- The JavaScript sets inline styles on density panels (e.g., `style="background: var(--x-density-bg)"`) which can override CSS if not careful.
+
+##### JavaScript Architecture
+
 The JavaScript codebase is organized into modular classes that follow a consistent pattern:
 - Each module is a class that takes the main `viewer` instance as a constructor parameter
 - Modules communicate through the shared `viewer` object, accessing properties and other modules via `this.viewer`
