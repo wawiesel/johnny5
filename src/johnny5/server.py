@@ -399,6 +399,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
         except Exception as e:
             print(f"[WebSocket] Connection error: {e}")
             import traceback
+
             traceback.print_exc()
 
     # Custom log handler to send logs to WebSocket clients
@@ -429,6 +430,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             # Send to all active connections using thread-safe method
             if main_loop and active_connections:
                 print(f"[WS Log] Sending to {len(active_connections)} connection(s)")
+
                 async def send_log():
                     for conn_id, websocket in list(active_connections.items()):
                         try:

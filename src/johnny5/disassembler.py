@@ -80,11 +80,11 @@ def run_disassemble(
     # Set up file logging for detailed output
     log_dir = get_cache_dir("logs")
     log_file = log_dir / f"{cache_key}.log"
-    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler = logging.FileHandler(log_file, mode="w")
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    ))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
     logger.addHandler(file_handler)
     logger.info(f"Full log will be written to: {log_file}")
 
