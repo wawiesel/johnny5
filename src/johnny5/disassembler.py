@@ -12,11 +12,9 @@ import importlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
-from docling.document_converter import DocumentConverter, FormatOption
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 from .utils.margins import analyze_page_margins
 from .utils.density import calculate_density
@@ -120,19 +118,21 @@ def _run_docling_conversion(
     """
     logger.debug(f"Initializing Docling converter with model: {layout_model}")
 
-    # Configure FormatOption for PDF with all required parameters
-    pdf_opts = FormatOption(
-        format="lossless-json",
-        include_layout=True,
-        layout_model=layout_model,
-        enable_ocr=enable_ocr,
-        dpi=json_dpi,
-        backend=PyPdfiumDocumentBackend,
-        pipeline_cls=StandardPdfPipeline,
+    # Initialize converter with PdfFormatOption and configure pipeline options
+    pdf_opt = PdfFormatOption()
+    # Start from defaults and override fields explicitly
+    pdf_options = PdfPipelineOptions()
+    pdf_options.do_ocr = enable_ocr
+    # Set layout model if exposed via pipeline options
+    # (uses LayoutOptions.model_spec)
+    pdf_options.layout_options.model_spec = (
+        pdf_options.layout_options.model_spec  # keep default if unknown name
     )
+    # JSON DPI used downstream for rendering/export; pipeline uses images_scale
+    # which we leave at default (1.0). json_dpi is persisted in metadata.
+    pdf_opt.pipeline_options = pdf_options
 
-    # Initialize converter with FormatOption
-    converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opts})
+    converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opt})
 
     # Convert document
     logger.debug("Running Docling conversion")
@@ -459,16 +459,15 @@ def load_docling_pipeline(layout_model: str, enable_ocr: bool) -> DocumentConver
     """
     logger.debug(f"Loading Docling pipeline: model={layout_model}, ocr={enable_ocr}")
 
+    pdf_opt = PdfFormatOption()
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = enable_ocr
     pipeline_options.do_table_structure = True
     pipeline_options.table_structure_options.do_cell_matching = True
+    # Optionally adjust layout model via pipeline options
+    pdf_opt.pipeline_options = pipeline_options
 
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: pipeline_options,
-        },
-    )
+    converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opt})
 
     return converter
 

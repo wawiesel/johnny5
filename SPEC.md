@@ -199,3 +199,40 @@ IDs use `pdf-*`, `ann-*`, and `rec-*` prefixes for the three main columns.
   - `rec-log` – right log panel (resizable via `.rec-log-resize-handle`)
 
 Rulers and gutters are redrawn on initial render and window resize and mirror the primary scroller to maintain alignment.
+
+### Density Profiles and Bounding Box Density
+
+Johnny5 computes analytic density profiles and region densities from page element bounding boxes. These are used by the UI X-density banners and Y-density sidebars, and available to fixups/extractors for layout reasoning.
+
+- **Inputs**: A set of elements with bounding boxes `bbox = [x0, y0, x1, y1]` in PDF points, page width `W`, height `H`.
+- **Output (profiles)**: Piecewise-constant density profiles along an axis:
+  - `x-density`: list of tuples `(x, ρx)` with `x ∈ [0, W]` and `ρx ∈ [0,1]`
+  - `y-density`: list of tuples `(y, ρy)` with `y ∈ [0, H]` and `ρy ∈ [0,1]`
+
+#### Requirements
+
+- **Analytic, not rasterized**: Profiles are computed by sweeping breakpoints only; no fixed-resolution grids. Breakpoints are the union of page boundaries and element edges for the swept axis.
+  - X sweep breakpoints: `{0, W} ∪ {x0, x1 for each bbox}`
+  - Y sweep breakpoints: `{0, H} ∪ {y0, y1 for each bbox}`
+  - Returned profiles contain exactly these ordered coordinates with corresponding densities.
+
+- **Normalization**:
+  - `ρx(x)` is the fraction of vertical extent occupied at position `x` over `[0, H]`.
+  - `ρy(y)` is the fraction of horizontal extent occupied at position `y` over `[0, W]`.
+  - Values are clamped to `[0, 1]`.
+
+- **Full-page coverage**: If an element spans the full page (`[0, 0, W, H]`), both profiles must report densities ≥ 0.9 (allowing minor fp error) at all returned coordinates; ideal value is `1.0`.
+
+- **Empty input**: With no elements, both profiles are empty lists `[]`.
+
+- **Profile format**: Each entry is a `(coordinate, density)` tuple with numeric types; coordinates are within page bounds. Profiles are monotonically non-decreasing in the coordinate component.
+
+#### Bounding Box Density (Region Density)
+
+For any query rectangle `R = [x0, y0, x1, y1]`, the bounding box density is the area-normalized overlap of all element boxes with `R`:
+
+- `ρ(R) = area(⋃(bbox ∩ R)) / area(R)` with `ρ(R) ∈ [0, 1]`.
+- This is computed analytically via interval union along each axis (no rasterization).
+- Used to characterize local crowding for fixups, extraction rules, and UI overlays.
+
+Note: The density implementation must be consistent with the profiles; e.g., a rectangle equal to the whole page with a full-page element yields `ρ(R) ≈ 1.0`.

@@ -50,9 +50,11 @@ def _calculate_coverage(
     merged = _merge_ranges(ranges)
     total = 0.0
     for start, end in merged:
-        start_clamped = max(clamp_min, min(start, clamp_max))
-        end_clamped = max(clamp_min, min(end, clamp_max))
-        total += end_clamped - start_clamped
+        if end <= clamp_min or start >= clamp_max:
+            continue
+        start_clamped = max(clamp_min, start)
+        end_clamped = min(clamp_max, end)
+        total += max(0.0, end_clamped - start_clamped)
     return total
 
 
@@ -92,26 +94,33 @@ def calculate_density(
         axis_length = page_width
         perp_length = page_height
 
-    # Collect all the density impulses
-    impulses: List[Tuple[float, float]] = []
+    # Build breakpoint set: page bounds + element edges on the swept axis
+    breakpoints: List[float] = [0.0, float(axis_length)]
     for x0, y0, x1, y1 in bboxes:
         if axis == "y":
-            density = (x1 - x0) / perp_length
-            impulses.append((y0, +density))
-            impulses.append((y1, -density))
-        else:  # axis == "x"
-            density = (y1 - y0) / perp_length
-            impulses.append((x0, +density))
-            impulses.append((x1, -density))
+            breakpoints.append(float(y0))
+            breakpoints.append(float(y1))
+        else:
+            breakpoints.append(float(x0))
+            breakpoints.append(float(x1))
 
-    # sort by the start of the impulse
-    impulses.sort(key=lambda x: x[0])
+    # Unique and sorted breakpoints
+    unique_points = sorted(set(breakpoints))
 
-    # accumulate the impulses
-    profile: List[Tuple[float, float]] = [(0.0, 0.0)]
-    for a, density in impulses:
-        profile.append((a, density + profile[-1][1]))
-    profile.append((profile[-1][0], 0.0))
-    profile.append((axis_length, 0.0))
+    # For each breakpoint coordinate, compute density from active intervals on perpendicular axis
+    profile: List[Tuple[float, float]] = []
+    for coord in unique_points:
+        if axis == "y":
+            # Active if y0 <= coord <= y1 (inclusive at boundaries)
+            active_ranges = [(x0, x1) for x0, y0, x1, y1 in bboxes if y0 <= coord <= y1]
+            coverage = _calculate_coverage(active_ranges, 0.0, perp_length)
+            density_value = 0.0 if perp_length <= 0 else min(1.0, max(0.0, coverage / perp_length))
+        else:
+            # axis == "x"; active if x0 <= coord <= x1 (inclusive)
+            active_ranges = [(y0, y1) for x0, y0, x1, y1 in bboxes if x0 <= coord <= x1]
+            coverage = _calculate_coverage(active_ranges, 0.0, perp_length)
+            density_value = 0.0 if perp_length <= 0 else min(1.0, max(0.0, coverage / perp_length))
+
+        profile.append((coord, density_value))
 
     return profile
