@@ -18,79 +18,24 @@ progress_ticker() {
     echo " (${elapsed}s)"
 }
 
-echo "🔎 Running JS/CSS linters (if installed)"
+echo "🔎 Running web checks (ESLint + Playwright)"
 
 # Detect project root (this script lives in scripts/)
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
-# ESLint first (fail fast)
-if command -v npx >/dev/null 2>&1 && [ -f "$ROOT_DIR/eslint.config.cjs" ]; then
-    echo "▶ ESLint: src/johnny5/web/static/**/*.js"
-    if ! (cd "$ROOT_DIR" && npx --yes eslint "src/johnny5/web/static/**/*.js"); then
-        echo "❌ ESLint failed"
-        exit 1
-    else
-        echo "✅ ESLint passed"
-    fi
-else
-    echo "ℹ️  ESLint not configured (skipping). Add eslint.config.cjs to enable."
-fi
-
-# Stylelint next
-if command -v npx >/dev/null 2>&1 && [ -f "$ROOT_DIR/.stylelintrc.json" ]; then
-    echo "▶ Stylelint: src/johnny5/web/static/**/*.css"
-    if ! (cd "$ROOT_DIR" && npx --yes stylelint "src/johnny5/web/static/**/*.css"); then
-        echo "❌ Stylelint failed"
-        exit 1
-    else
-        echo "✅ Stylelint passed"
-    fi
-else
-    echo "ℹ️  Stylelint not configured (skipping). Add .stylelintrc.json to enable."
+# Single web check wrapper (ESLint + Playwright)
+if ! (bash "$ROOT_DIR/scripts/check-web"); then
+    echo "❌ Web checks failed"
+    exit 1
 fi
 
 echo ""
 echo "🧪 Running Python tests and linters (venv required)"
 
-# Ensure we run using the project's virtualenv
-VENV_BIN="$ROOT_DIR/venv/bin"
-if [ ! -x "$VENV_BIN/python" ]; then
-    echo "❌ Python venv not found at $VENV_BIN"
-    echo "   Create it and install dev deps: python3 -m venv venv && venv/bin/pip install -U pip pytest ruff mypy"
+# Single Python check wrapper (pytest + ruff + mypy)
+if ! (bash "$ROOT_DIR/scripts/check-python"); then
+    echo "❌ Python checks failed"
     exit 1
-fi
-
-# Validate required Python tooling exists in venv
-for tool in pytest ruff mypy; do
-    if [ ! -x "$VENV_BIN/$tool" ]; then
-        echo "❌ Required tool missing in venv: $tool"
-        echo "   Install with: $VENV_BIN/pip install $tool"
-        exit 1
-    fi
-done
-
-echo "▶ Pytest"
-if ! (cd "$ROOT_DIR" && "$VENV_BIN/python" -m pytest -q); then
-    echo "❌ Pytest failed"
-    exit 1
-else
-    echo "✅ Pytest passed"
-fi
-
-echo "▶ Ruff"
-if ! (cd "$ROOT_DIR" && "$VENV_BIN/ruff" check .); then
-    echo "❌ Ruff failed"
-    exit 1
-else
-    echo "✅ Ruff passed"
-fi
-
-echo "▶ mypy"
-if ! (cd "$ROOT_DIR" && "$VENV_BIN/mypy" src tests); then
-    echo "❌ mypy failed"
-    exit 1
-else
-    echo "✅ mypy passed"
 fi
 
 echo ""
@@ -182,14 +127,6 @@ else
     echo "✅ All example README commands validated successfully!"
 fi
 
-# Optionally run Playwright e2e tests if the helper script exists
-if [ -x "$ROOT_DIR/scripts/pre-commit-playwright-tests" ]; then
-    echo ""
-    echo "🎭 Running Playwright tests via helper script"
-    if ! "$ROOT_DIR/scripts/pre-commit-playwright-tests"; then
-        echo "❌ Playwright tests failed"
-        exit 1
-    fi
-fi
+# Playwright already run inside check-web
 
 exit 0

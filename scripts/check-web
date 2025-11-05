@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT_DIR"
+
+echo "🎨 Web checks (ESLint + Playwright)"
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "❌ Node.js/npm not found. Install Node to run web checks." >&2
+  exit 1
+fi
+
+if [ ! -d "node_modules" ]; then
+  echo "❌ node_modules missing. Run 'npm ci' (or npm install) first." >&2
+  exit 1
+fi
+
+if [ -f "$ROOT_DIR/eslint.config.cjs" ]; then
+  echo "▶ ESLint"
+  npx --yes eslint "src/johnny5/web/static/**/*.js"
+  echo "✅ ESLint passed"
+else
+  echo "ℹ️  ESLint config not present; skipping lint" >&2
+fi
+
+if [ -x "$ROOT_DIR/scripts/pre-commit-playwright-tests" ]; then
+  echo "▶ Playwright"
+  "$ROOT_DIR/scripts/pre-commit-playwright-tests"
+else
+  echo "ℹ️  Playwright helper script not present; skipping e2e" >&2
+fi
+
+exit 0
+
+
