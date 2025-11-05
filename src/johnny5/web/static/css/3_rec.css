@@ -1,24 +1,31 @@
 /* Reconstruction column children */
 
-#rec-col #rec-x-density {
+/* rec-x-density in chrome grid */
+#rec-col-chrome #rec-x-density {
     background-color: var(--surface-2);
     position: relative;
-    z-index: 10; /* UI panels and controls (8-10) */
     grid-row: 1;
     grid-column: 1;
     border-right: 1px solid var(--border-subtle);
 }
 
-#rec-col #rec-y-density {
+/* rec-indicator in chrome grid */
+#rec-col-chrome #rec-indicator {
+    grid-row: 1;
+    grid-column: 2;
+}
+
+/* rec-y-density in chrome grid */
+#rec-col-chrome #rec-y-density {
     background-color: var(--surface-2);
     position: relative;
-    z-index: 10; /* UI panels and controls (8-10) */
     overflow: hidden;
     grid-row: 2;
     grid-column: 2;
     border-left: 1px solid var(--border-subtle);
 }
 
+/* rec-viewer in content grid */
 #rec-col #rec-viewer {
     background-color: var(--surface-2);
     position: relative;
@@ -28,10 +35,10 @@
     border-right: 1px solid var(--border-subtle);
 }
 
-#rec-col #rec-options {
+/* rec-options in chrome grid */
+#rec-col-chrome #rec-options {
     background-color: var(--surface-3);
     position: relative;
-    z-index: 10; /* UI panels and controls (8-10) */
     padding: 0.5rem;
     overflow-y: auto;
     grid-row: 3;
@@ -39,16 +46,17 @@
     border-top: 1px solid var(--border-subtle);
     color: var(--text-primary);
     box-shadow: inset 0 1px 0 var(--shadow-inset-light);
+    min-height: 0; /* Allow grid to shrink this row */
 }
 
 .options-collapsed .rec-controls .rec-control-group:not(:first-child) {
     display: none;
 }
 
-#rec-col #rec-log {
+/* rec-log in chrome grid */
+#rec-col-chrome #rec-log {
     background-color: var(--rec-log);
     position: relative;
-    z-index: 10; /* UI panels and controls (8-10) */
     padding: 0.5rem;
     overflow-y: auto;
     font-family: 'Courier New', monospace;
@@ -62,6 +70,7 @@
     resize: none !important;
     color: var(--log-text-color);
     border-top: 1px solid var(--border-subtle);
+    min-height: 0; /* Allow grid to shrink this row */
 }
 
 .rec-log-content {
