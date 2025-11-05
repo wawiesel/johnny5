@@ -26,11 +26,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+        if: ${{ hashFiles('package.json') != '' }}
 
       - name: Install Node deps
         run: |
-          npm ci
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
           npx --yes playwright install --with-deps
+        if: ${{ hashFiles('package.json') != '' }}
 
       - name: Python checks (pytest, ruff, mypy)
         run: bash scripts/check-python

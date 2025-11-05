@@ -7,6 +7,12 @@ cd "$ROOT_DIR"
 
 echo "🎨 Web checks (ESLint + Playwright)"
 
+# If no package.json, there is nothing to install or lint/test for web
+if [ ! -f "$ROOT_DIR/package.json" ]; then
+  echo "ℹ️  No package.json present; skipping web checks."
+  exit 0
+fi
+
 if ! command -v npx >/dev/null 2>&1; then
   echo "❌ Node.js/npm not found. Install Node to run web checks." >&2
   exit 1
