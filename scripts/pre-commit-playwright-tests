@@ -37,9 +37,24 @@ else
 fi
 
 # Set timeout to prevent hanging (default 30s per test, config has 15s, webServer has 120s)
-# Total timeout: 180s (3 min) should be enough for server startup + tests
-PLAYWRIGHT_HTML_REPORT=0 timeout 180 $PLAYWRIGHT_CMD test --reporter=line --timeout=30000 || {
-    echo "❌ Playwright tests failed or timed out"
-    exit 1
-}
+# Use cross-platform timeout: macOS uses gtimeout (if installed) or perl alarm, Linux uses timeout
+if command -v timeout >/dev/null 2>&1; then
+    # Linux: use timeout command
+    PLAYWRIGHT_HTML_REPORT=0 timeout 180 $PLAYWRIGHT_CMD test --reporter=line --timeout=30000 || {
+        echo "❌ Playwright tests failed or timed out"
+        exit 1
+    }
+elif command -v perl >/dev/null 2>&1; then
+    # macOS: use perl alarm as timeout
+    PLAYWRIGHT_HTML_REPORT=0 perl -e 'alarm 180; exec @ARGV' $PLAYWRIGHT_CMD test --reporter=line --timeout=30000 || {
+        echo "❌ Playwright tests failed or timed out"
+        exit 1
+    }
+else
+    # Fallback: rely on Playwright's own timeout and webServer timeout (120s)
+    PLAYWRIGHT_HTML_REPORT=0 $PLAYWRIGHT_CMD test --reporter=line --timeout=30000 || {
+        echo "❌ Playwright tests failed"
+        exit 1
+    }
+fi
 echo "✅ Playwright tests passed"

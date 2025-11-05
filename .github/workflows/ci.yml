@@ -41,4 +41,5 @@ jobs:
         env:
           JOHNNY5_TEST_PDF: examples/01-one_page/01-one_page.pdf
           JOHNNY5_TEST_FIXUP: johnny5.fixups.example_fixup
+        timeout-minutes: 5
         run: bash scripts/check-web
