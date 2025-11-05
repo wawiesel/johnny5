@@ -415,7 +415,12 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
         if hasattr(app.state, "startup_pdf_path") and app.state.startup_pdf_path:
             pdf_path = app.state.startup_pdf_path
             fixup_module = app.state.startup_fixup
-            print("🔄 Starting disassembly in background...")
+            if not pdf_path.exists():
+                server_logger = logging.getLogger("johnny5.server")
+                server_logger.error(f"Startup PDF not found: {pdf_path}")
+                print(f"❌ Startup PDF not found: {pdf_path}")
+                return
+            print(f"🔄 Starting disassembly in background for: {pdf_path}")
             asyncio.create_task(run_disassembly_background(pdf_path, fixup_module))
 
     # Store helper functions as app state for testing/external access
@@ -423,9 +428,9 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     app.state.set_current_pdf = set_current_pdf
     app.state.run_disassembly_background = run_disassembly_background
     app.state.cli_pdf_path = cli_pdf_path
-    # Startup PDF path (set by run_web before starting server)
-    app.state.startup_pdf_path = None
-    app.state.startup_fixup = None
+    # Set startup PDF path and fixup so startup event can trigger disassembly
+    app.state.startup_pdf_path = cli_pdf_path
+    app.state.startup_fixup = fixup
 
     return app
 
