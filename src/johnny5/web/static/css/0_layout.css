@@ -23,7 +23,7 @@ body a {
     background-color: transparent;
 }
 
-/* SVG overlay for connection lines - child of app-container, sibling to grid columns */
+/* Layer 2: SVG connection lines (z-index: 15) - above content, below chrome */
 #connection-lines-overlay {
     position: absolute;
     top: 0;
@@ -31,13 +31,12 @@ body a {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 15; /* Above pdf-viewer (z-index 10), below UI chrome (z-index 20) */
+    z-index: 15;
     overflow: visible;
 }
 
 #connection-lines-overlay .connection-line {
-    pointer-events: auto;
-    cursor: pointer;
+    pointer-events: none; /* Don't block scrolling */
     stroke-width: 2;
     opacity: 1;
 }
@@ -115,7 +114,7 @@ body button:hover {
     grid-row: 1;
     grid-column: 1;
     position: relative;
-    z-index: 20;
+    z-index: 10000; /* Top-level UI overlays (10000+): color mode selector */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -182,19 +181,63 @@ body button:hover {
 /* Layout: global grids and column tracks */
 
 .app-container {
-    display: grid;
     height: 100vh;
     width: 100vw;
     --topbar-size: 40px; /* square indicators */
-    grid-template-columns: minmax(0, 1fr) 18ch minmax(0, 1fr) !important; /* pdf | ann-col | rec */
-    grid-template-rows: 100%;
-    gap: 0;
     background-color: var(--surface-1);
-    position: relative; /* Positioning context for SVG overlay */
+    position: relative; /* Positioning context for layers */
 }
 
-/* PDF column grid with rows: topbar | viewer | options | log */
-#pdf-col {
+/* Layer 1: Content grid (z-index: 10) - PDF viewer, annotation list, rec viewer */
+.content-grid {
+    position: relative;
+    z-index: 10;
+    display: grid;
+    height: 100vh;
+    width: 100vw;
+    grid-template-columns: minmax(0, 1fr) 18ch minmax(0, 1fr); /* pdf | ann | rec */
+    grid-template-rows: 100%;
+    gap: 0;
+}
+
+/* Layer 3: Chrome grid (z-index: 20) - UI chrome above connection lines */
+.chrome-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 18ch minmax(0, 1fr); /* pdf | ann | rec */
+    grid-template-rows: 100%;
+    gap: 0;
+    pointer-events: none; /* Allow interaction to pass through to content below */
+}
+
+/* Chrome columns remain pointer-events: none to pass through */
+.chrome-grid > * {
+    pointer-events: none;
+}
+
+/* Only actual chrome elements get pointer-events: auto */
+.chrome-grid #color-mode-selector,
+.chrome-grid #pdf-x-density,
+.chrome-grid #pdf-y-density,
+.chrome-grid #pdf-options,
+.chrome-grid #pdf-log,
+.chrome-grid #ann-progress,
+.chrome-grid #ann-toggles,
+.chrome-grid #rec-x-density,
+.chrome-grid #rec-indicator,
+.chrome-grid #rec-y-density,
+.chrome-grid #rec-options,
+.chrome-grid #rec-log {
+    pointer-events: auto;
+}
+
+/* PDF column - content grid (contains only #pdf-viewer at row 2, col 2) */
+.content-grid #pdf-col {
     grid-column: 1 / 2;
     display: grid;
     height: 100%;
@@ -202,29 +245,54 @@ body button:hover {
     grid-template-rows: var(--topbar-size) 1fr max-content 6em;
     gap: 0;
     background: var(--surface-1);
-    /* No position or z-index - avoid creating stacking context */
-    /* prevent accidental implicit tracks */
     grid-auto-rows: 0;
 }
 
+/* PDF column - chrome grid (contains density, options, log) */
+.chrome-grid #pdf-col-chrome {
+    grid-column: 1 / 2;
+    display: grid;
+    height: 100%;
+    grid-template-columns: var(--topbar-size) 1fr;
+    grid-template-rows: var(--topbar-size) minmax(0, 1fr) minmax(auto, max-content) 6em;
+    gap: 0;
+    background: transparent;
+    grid-auto-rows: 0;
+    overflow: hidden; /* Prevent overflow beyond viewport */
+    position: relative; /* Promote to positioned element so z-index works */
+    z-index: 20; /* Now truly above SVG */
+}
 
-/* Annotations column */
-#ann-col {
+/* Annotations column - content grid (contains only #ann-list at row 2) */
+.content-grid #ann-col {
     grid-column: 2 / 3;
     display: grid;
     height: 100%;
     grid-template-columns: 1fr;
-    grid-template-rows: var(--topbar-size) 1fr minmax(240px, auto); /* 2x initial height (was 120px) */
+    grid-template-rows: var(--topbar-size) 1fr minmax(240px, auto);
     gap: 0;
     background: transparent;
     min-width: 0 !important;
-    /* No position - avoid creating stacking context */
 }
-#ann-col, #ann-col * { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-#ann-col > * { min-width: 0; max-width: 100%; overflow: hidden; }
 
-/* Reconstruction column */
-#rec-col {
+/* Annotations column - chrome grid (contains progress, toggles) */
+.chrome-grid #ann-col-chrome {
+    grid-column: 2 / 3;
+    display: grid;
+    height: 100%;
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-size) 1fr minmax(240px, auto);
+    gap: 0;
+    background: transparent;
+    min-width: 0 !important;
+    position: relative; /* Promote to positioned element so z-index works */
+    z-index: 20; /* Now truly above SVG */
+}
+#ann-col-chrome, #ann-col-chrome * { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+#ann-col-chrome > * { min-width: 0; max-width: 100%; overflow: hidden; }
+
+/* Reconstruction column - content grid (contains only #rec-viewer at row 2, col 1) */
+.content-grid #rec-col {
     grid-column: 3 / 4;
     display: grid;
     height: 100%;
@@ -232,6 +300,19 @@ body button:hover {
     grid-template-rows: var(--topbar-size) 1fr minmax(25px, auto) minmax(25px, auto);
     gap: 0;
     background: transparent;
-    /* No position - avoid creating stacking context */
+}
+
+/* Reconstruction column - chrome grid (contains density, indicator, options, log) */
+.chrome-grid #rec-col-chrome {
+    grid-column: 3 / 4;
+    display: grid;
+    height: 100%;
+    grid-template-columns: 1fr var(--topbar-size);
+    grid-template-rows: var(--topbar-size) minmax(0, 1fr) minmax(25px, auto) minmax(25px, auto);
+    gap: 0;
+    background: transparent;
+    overflow: hidden; /* Prevent overflow beyond viewport */
+    position: relative; /* Promote to positioned element so z-index works */
+    z-index: 20; /* Now truly above SVG */
 }
 

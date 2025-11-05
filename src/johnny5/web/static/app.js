@@ -2030,7 +2030,7 @@ class Johnny5Viewer {
 
         yRight.innerHTML = '';
         yRight.style.overflowY = 'hidden';
-        yRight.style.background = 'var(--ann-bg)';
+        yRight.style.background = 'var(--ann-list-bg)';
         yRight.style.display = 'block';
 
         const themeStyles = getComputedStyle(document.body);
@@ -3398,5 +3398,5 @@ class Johnny5Viewer {
 
 // Initialize the viewer when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new Johnny5Viewer();
+    window.viewer = new Johnny5Viewer();
 });
