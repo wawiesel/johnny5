@@ -15,10 +15,6 @@ There are other things to do of course, this is not an exhaustive list.
 - Types/lint: precise types (e.g., `DisassembleOptions`); satisfy mypy/ruff.
 - Tests: E2E waits for WebSocket completion; verify indicator transitions.
 
-## Fix z-ordering
-
-- Make sure annotation connectors go behind UI chrome
-
 ## Fix playwright tests
 
 - Strengthen Playwright tests for z-order and interaction precedence.
