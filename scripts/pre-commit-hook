@@ -52,34 +52,45 @@ fi
 echo ""
 echo "🧪 Running Python tests and linters (venv required)"
 
-# Ensure we run using the project's virtualenv when present
+# Ensure we run using the project's virtualenv
 VENV_BIN="$ROOT_DIR/venv/bin"
-if [ -x "$VENV_BIN/python" ]; then
-    echo "▶ Pytest"
-    if ! (cd "$ROOT_DIR" && "$VENV_BIN/python" -m pytest -q); then
-        echo "❌ Pytest failed"
-        exit 1
-    else
-        echo "✅ Pytest passed"
-    fi
+if [ ! -x "$VENV_BIN/python" ]; then
+    echo "❌ Python venv not found at $VENV_BIN"
+    echo "   Create it and install dev deps: python3 -m venv venv && venv/bin/pip install -U pip pytest ruff mypy"
+    exit 1
+fi
 
-    echo "▶ Ruff"
-    if ! (cd "$ROOT_DIR" && "$VENV_BIN/ruff" check .); then
-        echo "❌ Ruff failed"
+# Validate required Python tooling exists in venv
+for tool in pytest ruff mypy; do
+    if [ ! -x "$VENV_BIN/$tool" ]; then
+        echo "❌ Required tool missing in venv: $tool"
+        echo "   Install with: $VENV_BIN/pip install $tool"
         exit 1
-    else
-        echo "✅ Ruff passed"
     fi
+done
 
-    echo "▶ mypy"
-    if ! (cd "$ROOT_DIR" && "$VENV_BIN/mypy" src tests); then
-        echo "❌ mypy failed"
-        exit 1
-    else
-        echo "✅ mypy passed"
-    fi
+echo "▶ Pytest"
+if ! (cd "$ROOT_DIR" && "$VENV_BIN/python" -m pytest -q); then
+    echo "❌ Pytest failed"
+    exit 1
 else
-    echo "ℹ️  venv not found at $VENV_BIN (skipping Python checks)."
+    echo "✅ Pytest passed"
+fi
+
+echo "▶ Ruff"
+if ! (cd "$ROOT_DIR" && "$VENV_BIN/ruff" check .); then
+    echo "❌ Ruff failed"
+    exit 1
+else
+    echo "✅ Ruff passed"
+fi
+
+echo "▶ mypy"
+if ! (cd "$ROOT_DIR" && "$VENV_BIN/mypy" src tests); then
+    echo "❌ mypy failed"
+    exit 1
+else
+    echo "✅ mypy passed"
 fi
 
 echo ""
