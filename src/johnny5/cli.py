@@ -4,43 +4,64 @@ import sys
 import warnings
 import tempfile
 import shutil
+import logging
 from pathlib import Path
-from .decomposer import run_decompose
+from .disassembler import run_disassemble
 from .server import run_web
 from .qmd_checker import check_qmd_file, format_check_results
 
 # Suppress RuntimeWarning about module loading
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="runpy")
 
+# Configure logging to go to stderr (per spec)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
 
-@click.group()
+
+@click.group()  # type: ignore[misc]
 def main() -> None:
     """Johnny5 — Disassemble. Understand. Reassemble."""
     pass
 
 
-@main.command()
-@click.argument("pdf", type=click.Path(exists=True, path_type=Path))
-@click.option("--layout-model", default="pubtables")
-@click.option("--enable-ocr", is_flag=True)
-@click.option("--json-dpi", default=300)
-@click.option("--fixup", default="johnny5.fixups.example_fixup")
+@main.command()  # type: ignore[misc]
+@click.argument("pdf", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
+@click.option("--layout-model", default="pubtables")  # type: ignore[misc]
+@click.option("--enable-ocr", is_flag=True)  # type: ignore[misc]
+@click.option("--json-dpi", default=300)  # type: ignore[misc]
+@click.option("--fixup", default="johnny5.fixups.example_fixup")  # type: ignore[misc]
 def disassemble(pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, fixup: str) -> None:
-    """Disassemble PDF -> Lossless JSON"""
-    run_decompose(pdf, layout_model, enable_ocr, json_dpi, fixup)
+    """Disassemble PDF -> Lossless JSON (with content-based caching).
+
+    Outputs cache key to stdout for chaining commands.
+    All logging goes to stderr.
+
+    Example:
+        CACHE_KEY=$(jny5 disassemble document.pdf)
+        echo "Cache key: $CACHE_KEY"
+    """
+    try:
+        cache_key = run_disassemble(pdf, layout_model, enable_ocr, json_dpi, fixup)
+        # Output cache key to stdout (per spec: for command chaining)
+        print(cache_key)
+    except Exception:
+        # Error already logged to stderr by run_disassemble
+        sys.exit(1)
 
 
-@main.command()
-@click.argument("pdf", type=click.Path(exists=True, path_type=Path))
-@click.option("--port", default=8000)
-@click.option("--fixup", default="johnny5.fixups.example_fixup")
-def web(pdf: Path, port: int, fixup: str) -> None:
+@main.command()  # type: ignore[misc]
+@click.argument("pdf", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
+@click.option("--port", default=8000)  # type: ignore[misc]
+@click.option("--fixup", default="johnny5.fixups.example_fixup")  # type: ignore[misc]
+@click.option(
+    "--color", type=click.Choice(["light", "dark", "debug"], case_sensitive=False), default="dark"
+)  # type: ignore[misc]
+def web(pdf: Path, port: int, fixup: str, color: str) -> None:
     """Launch the web viewer"""
-    run_web(pdf, port, fixup)
+    run_web(pdf, port, fixup, color_scheme=color.lower())
 
 
-@main.command()
-@click.argument("file", type=click.Path(exists=True, path_type=Path))
+@main.command()  # type: ignore[misc]
+@click.argument("file", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
 def check(file: Path) -> None:
     """Check file for quality issues based on file extension (currently supports .qmd)"""
     try:
@@ -64,8 +85,8 @@ def check(file: Path) -> None:
         raise click.ClickException(f"Error checking file: {e}")
 
 
-@main.command()
-@click.argument("file", type=click.Path(exists=True, path_type=Path))
+@main.command()  # type: ignore[misc]
+@click.argument("file", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
 def to_pdf(file: Path) -> None:
     """Render file to PDF based on file extension (currently supports .qmd using Quarto)"""
     try:

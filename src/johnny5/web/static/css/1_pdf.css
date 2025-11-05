@@ -1,0 +1,832 @@
+/* PDF column children and behaviors */
+
+/* Density rails - shared base styles */
+#pdf-x-density,
+#pdf-y-density {
+    background-color: var(--surface-2);
+    position: relative;
+    z-index: 20; /* density panels always on top */
+    display: block;
+}
+
+/* X-density specific: horizontal top bar */
+#pdf-x-density {
+    overflow-x: auto;
+    overflow-y: hidden;
+    grid-row: 1;
+    grid-column: 2;
+    height: var(--topbar-size);
+    max-height: var(--topbar-size);
+}
+
+/* Y-density specific: vertical left bar */
+#pdf-y-density {
+    overflow: hidden;
+    height: 100%;
+    padding: 0; /* avoid offset */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE */
+    grid-row: 2;
+    grid-column: 1;
+}
+
+#pdf-y-density::-webkit-scrollbar { 
+    display: none; 
+}
+
+/* 3-layer structure: background (container), grid, density overlay */
+/* Grid layer - middle layer */
+#pdf-x-density > div,
+#pdf-x-density > div > canvas,
+#pdf-y-density > canvas,
+#pdf-y-density > div {
+    width: 100%;
+}
+
+#pdf-y-density > canvas {
+    display: block;
+    flex: none;
+}
+
+/* Density overlay canvas - top layer */
+#pdf-x-density .x-density-overlay-canvas,
+#pdf-y-density .density-overlay-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+}
+
+/* Viewer */
+/* PDF pages */
+#pdf-viewer {
+    background-color: var(--surface-1);
+    position: relative;
+    z-index: 10;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    grid-row: 2;
+    grid-column: 2;
+}
+
+#pdf-scroller {
+    position: relative;
+    width: 100%;
+    flex-grow: 1;
+    overflow: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    will-change: scroll-position;
+    max-height: none;
+    max-width: none;
+    background-color: var(--pdf-page-gap-color);
+}
+
+.pdf-page-wrapper {
+    background: transparent;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+}
+
+.pdf-page-wrapper::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    pointer-events: none;
+}
+
+/* Grid and overlay layers */
+#overlay-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    pointer-events: none;
+}
+
+/* pdf-grid is positioned by JavaScript with absolute positioning */
+#pdf-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+    overflow: hidden;
+}
+
+#overlay-container {
+    z-index: 3;
+}
+
+/* Left ruler overlay */
+#pdf-left-ruler {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 36px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* Page break margins (default: transparent) */
+.pdf-page-break-margin {
+    display: block;
+    width: 100%;
+    height: 24px;
+    background: var(--pdf-page-gap-color);
+}
+
+/* Margin container - transparent, only margin divs inside have color */
+#pdf-grid-margins {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    pointer-events: none;
+    z-index: 2;
+    overflow: hidden;
+}
+
+/* PDF Grid and axis geometry */
+:root {
+    --pdf-grid-line-width: 0.5px;
+    --pdf-axis-width: 2px;
+    --pdf-origin-marker-size: 8px;
+}
+
+/* Origin marker - shows PDF coordinate origin (0,0) */
+.origin-marker {
+    position: absolute;
+    width: var(--pdf-origin-marker-size);
+    height: var(--pdf-origin-marker-size);
+    background-color: var(--pdf-origin-marker);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Options panel */
+#pdf-options {
+    background-color: var(--surface-3);
+    padding: 0.5rem;
+    grid-row: 3;
+    grid-column: 1 / span 2;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-auto-rows: min-content;
+    gap: 0.5rem; /* row gap */
+    align-content: start;
+    position: relative; /* anchor for toggle */
+    z-index: 20;
+    border-top: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 0 var(--border-subtle);
+}
+
+/* Controls inside options */
+#pdf-options .pdf-controls {
+    display: contents; /* Flatten wrapper so groups are direct grid items */
+    color: var(--text-primary);
+}
+
+#pdf-options .pdf-control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* First row group: spans full width, uniform height */
+#pdf-options .pdf-control-group:first-of-type {
+    grid-column: 1;
+    grid-row: 1;
+    align-items: center;
+    height: min-content;
+}
+/* Ensure button matches stacked field height */
+#pdf-options .pdf-control-group:first-of-type .pdf-control-btn {
+    align-self: stretch;
+    min-height: 0;
+    flex: 0 0 auto;
+}
+
+/* Ensure sliders stretch fully within their group without side gaps */
+#pdf-options .pdf-control-group input[type="range"] {
+    flex: 1 1 160px;
+    min-width: 100px;
+    margin: 0;
+    padding: 0;
+    background: var(--border-subtle);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+/* Optional: make number inputs compact beside sliders */
+#pdf-options .pdf-control-group input[type="number"] {
+    width: 60px;
+    margin: 0;
+}
+
+/* Disassemble subpanel styling */
+#pdf-options .disassemble-subpanel {
+    display: grid;
+    grid-template-rows: auto 1fr; /* Header row, then controls row */
+    grid-column: 1;
+    grid-row: 2;
+    padding: 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--surface-1);
+    box-shadow: inset 0 1px 0 var(--border-subtle);
+    overflow-x: hidden; /* Prevent horizontal scrolling, let grid wrap */
+    overflow-y: hidden;
+    width: 100%; /* Full width available */
+    gap: 8px; /* Space between header and controls */
+}
+
+#pdf-options .disassemble-title {
+    /* Deprecated inline title; prefer .disassemble-tab */
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+/* Simple header text for the Disassemble subpanel */
+#pdf-options .disassemble-tab {
+    grid-row: 1;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--disassemble-tab-color);
+    text-align: left;
+    margin: 0;
+    padding: 0;
+}
+
+/* Disassemble row: flexbox that wraps control groups, each group is 2-row */
+#pdf-options .disassemble-row {
+    grid-row: 2; /* Second row in the subpanel grid */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.6rem; /* row gap | column gap */
+    overflow-x: hidden; /* Prevent horizontal scrollbar */
+    width: 100%; /* Constrain to parent width */
+    align-items: stretch; /* Stretch all groups to same height in a row */
+}
+
+/* Each control group is a 2-row sub-grid (label + control) */
+#pdf-options .disassemble-row .pdf-control-group {
+    display: grid;
+    grid-template-columns: max-content; /* Don't expand to fill */
+    grid-template-rows: auto 1fr; /* Label row (auto), control row (fills remaining) */
+    gap: 2px;
+    width: max-content; /* Only take width needed for content */
+    flex-shrink: 0; /* Don't shrink below content size */
+    justify-items: center; /* Center items horizontally */
+    align-items: center; /* Center items vertically */
+}
+
+/* Label in top row of control group */
+#pdf-options .disassemble-row .pdf-control-group label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin: 0;
+    padding-left: 5px;
+    text-align: left;
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: start; /* Override center, left align labels */
+    align-self: start; /* Keep label at top */
+    min-height: 1em; /* Maintain consistent height even when empty */
+}
+
+/* Empty label - maintain height but no visual content */
+#pdf-options .disassemble-row .pdf-control-group label:empty {
+    min-height: 1em;
+    line-height: 1em;
+}
+
+/* Controls wrapper in bottom row of control group */
+#pdf-options .disassemble-row .pdf-control-group .pdf-controls-wrapper {
+    grid-row: 2;
+    grid-column: 1;
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    justify-content: center; /* Center controls horizontally within wrapper */
+    align-self: center; /* Center vertically in the available space */
+}
+
+/* Single controls in bottom row of control group */
+#pdf-options .disassemble-row .pdf-control-group > select,
+#pdf-options .disassemble-row .pdf-control-group > input:not(.pdf-controls-wrapper) {
+    grid-row: 2;
+    grid-column: 1;
+    align-self: center; /* Center vertically in the available space */
+}
+
+/* Button should stretch to match height of other controls */
+#pdf-options .disassemble-row .pdf-control-group > button {
+    grid-row: 2;
+    grid-column: 1;
+    align-self: stretch; /* Stretch to fill grid cell height */
+}
+
+/* Controls: only set min-width, height comes from grid structure */
+#pdf-options .disassemble-row select {
+    min-width: 140px;
+}
+#pdf-options .disassemble-row input[type="number"] {
+    min-width: 64px;
+}
+#pdf-options .disassemble-row input[type="range"] {
+    min-width: 120px;
+}
+#pdf-options .disassemble-row .disassemble-btn {
+    min-width: 80px; /* Extra width to accommodate notification dot without resizing */
+    width: 80px; /* Fixed width to prevent size change when dot appears */
+    height: 100%; /* Fill the available space in grid row to match other controls */
+    box-sizing: border-box;
+    align-self: stretch; /* Stretch to fill grid cell height */
+}
+
+/* Visual change indicator on the Refresh button when options changed */
+#pdf-options .disassemble-btn.needs-run::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--alert-color);
+    margin-left: 6px;
+    box-shadow: 0 0 0 1px var(--alert-color-soft);
+}
+
+#pdf-options .pdf-control-group label {
+    /* Match checksum label style */
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    min-width: 40px;
+    color: var(--text-secondary);
+}
+
+/* Make the PDF load row occupy a full line */
+#pdf-options .pdf-control-group:has(#load-pdf-btn) {
+    width: 100%;
+    white-space: nowrap;
+}
+
+#pdf-options .pdf-control-group:has(#load-pdf-btn) .pdf-file-display {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Truncate filename from the start with ellipsis */
+#pdf-options .pdf-control-group:has(#load-pdf-btn) .pdf-file-display {
+    direction: rtl;
+    unicode-bidi: plaintext; /* Keep logical order */
+    text-align: left;
+}
+
+/* Info chips on first row */
+#pdf-options .pdf-info-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    margin-left: 6px;
+    padding: 0 6px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+}
+
+/* Stacked label-over-control presentation */
+#pdf-options .pdf-control-group.stacked,
+#pdf-options .pdf-info-field {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+#pdf-options .pdf-info-field {
+    margin-left: 8px;
+}
+
+/* Grid controls wrapper (checkbox + input side by side) */
+#pdf-options .pdf-grid-controls-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Checkbox in grid field */
+#pdf-options #pdf-grid-field input[type="checkbox"] {
+    cursor: pointer;
+    width: auto;
+    height: auto;
+    margin: 0;
+}
+
+#pdf-options .pdf-info-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+}
+
+#pdf-options .pdf-info-value {
+    display: inline-flex;
+    align-items: center;
+    max-width: 22ch;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+}
+
+/* Input fields with pdf-info-value should match styling */
+#pdf-options .pdf-info-value[type="number"],
+#pdf-options .pdf-info-value[type="text"] {
+    display: block;
+    width: 80px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+}
+
+/* Truncate checksum value with trailing ellipsis when space is limited */
+#pdf-options #pdf-checksum-value {
+    max-width: 100%;
+    min-width: 0; /* Allow flex item to shrink below content size */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block; /* Ensure proper truncation */
+}
+
+/* Collapsed state */
+#pdf-options.options-collapsed {
+    grid-template-rows: min-content; /* Only first row visible */
+    max-height: none; /* Allow first row to show fully */
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#pdf-options.options-collapsed .pdf-controls .pdf-control-group {
+    display: none;
+}
+
+#pdf-options.options-collapsed .pdf-controls .pdf-control-group:first-of-type {
+    display: flex; /* First row visible */
+}
+
+#pdf-options.options-collapsed .pdf-controls .disassemble-subpanel {
+    display: none; /* Hide disassemble panel when collapsed */
+}
+
+/* Expanded state */
+#pdf-options:not(.options-collapsed) {
+    max-height: none;
+    overflow-y: auto; /* Allow scrolling when many controls */
+    overflow-x: visible;
+}
+
+/* Collapse toggle */
+#pdf-options .options-toggle {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: var(--surface-4);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.6rem;
+    z-index: 10;
+    line-height: 1;
+    min-width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#pdf-options .options-toggle:hover {
+    border-color: var(--accent);
+    background: var(--surface-3);
+}
+
+/* PDF log panel - simple box at bottom */
+#pdf-log {
+    background-color: var(--pdf-log);
+    position: relative;
+    z-index: 20;
+    grid-row: 4;
+    grid-column: 1 / -1; /* Span all columns (alternative to span 2) */
+    display: block !important; /* Override .box flex display */
+    align-items: initial !important;
+    justify-content: initial !important;
+    text-align: left !important;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: var(--log-text-color);
+    border-top: 1px solid var(--border-subtle);
+    padding: 0; /* Remove default padding */
+}
+
+#pdf-log .pdf-log-content {
+    width: 100%;
+    min-height: 100%;
+    padding: 8px; /* Move padding here */
+    padding-top: 40px; /* Space for copy button */
+}
+
+#pdf-log .pdf-log-entry {
+    margin-bottom: 0.25rem;
+    white-space: pre-wrap;
+}
+
+/* Warning messages */
+#pdf-log .pdf-log-entry.warning {
+    color: var(--log-warning-color);
+}
+
+/* Error messages */
+#pdf-log .pdf-log-entry.error {
+    color: var(--log-error-color);
+}
+
+.pdf-log-copy-btn {
+    position: sticky;
+    top: 8px;
+    right: 8px;
+    float: right;
+    margin: 8px;
+    background: var(--overlay-bg);
+    backdrop-filter: blur(4px);
+    border: none;
+    border-radius: 6px;
+    padding: 6px;
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.2s ease;
+    opacity: 0.4;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.pdf-log-copy-btn:hover {
+    opacity: 1;
+    background: var(--accent-soft);
+}
+
+.pdf-log-copy-icon {
+    width: 16px;
+    height: 16px;
+    stroke: var(--overlay-text);
+    pointer-events: none;
+}
+
+/* PDF viewer controls overlay */
+#pdf-viewer .pdf-controls-overlay,
+#pdf-viewer #pdf-page-count-overlay {
+    position: absolute;
+    top: 15px;
+    background: var(--overlay-bg);
+    backdrop-filter: blur(4px);
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--overlay-text);
+    opacity: 0.4;
+    height: 28px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+}
+
+#pdf-viewer .pdf-controls-overlay {
+    right: 15px;
+    z-index: 10000;
+    flex-direction: row;
+    gap: 0.25rem;
+    transition: all 0.3s ease;
+    pointer-events: auto;
+}
+
+#pdf-viewer .pdf-controls-overlay:hover {
+    opacity: 1;
+    background: var(--overlay-bg-hover);
+    transform: scale(1.05);
+}
+
+#pdf-viewer #pdf-page-count-overlay {
+    left: 15px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* Page navigation overlay - mirrors zoom control on left side */
+#pdf-viewer .pdf-page-nav-overlay {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: var(--overlay-bg);
+    backdrop-filter: blur(4px);
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--overlay-text);
+    opacity: 0.4;
+    height: 28px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    z-index: 10000;
+    transition: all 0.3s ease;
+    pointer-events: auto;
+}
+
+#pdf-viewer .pdf-page-nav-overlay:hover {
+    opacity: 1;
+    background: var(--overlay-bg-hover);
+    transform: scale(1.05);
+}
+
+.pdf-page-input {
+    background: var(--surface-4);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 0.2em 0.3em;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    width: 50px;
+    text-align: center;
+    cursor: default;
+    transition: all 0.2s;
+}
+
+.pdf-page-input:hover {
+    border-color: var(--accent);
+}
+
+.pdf-page-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--surface-3);
+}
+
+.pdf-page-separator,
+.pdf-page-total {
+    color: var(--overlay-text);
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.pdf-control-btn {
+    background: var(--surface-4);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 0.3em;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+    min-width: 24px;
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pdf-control-btn:hover {
+    background: var(--surface-3);
+    border-color: var(--accent);
+    transform: scale(1.1);
+}
+
+.pdf-control-btn:active {
+    background: var(--surface-2);
+    transform: scale(0.95);
+}
+
+.pdf-control-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Match original icon sizing and stroke */
+#pdf-viewer .pdf-controls-overlay .pdf-control-icon {
+    width: 12px;
+    height: 12px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#pdf-viewer .pdf-controls-overlay .pdf-control-btn {
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0 4px;
+    font-size: 0.75rem;
+    line-height: 1;
+}
+
+.pdf-zoom-display,
+.pdf-page-display,
+.pdf-file-display {
+    background: var(--surface-4);
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-weight: 600;
+    min-width: 50px;
+    text-align: center;
+    font-size: 0.7rem;
+    border: 1px solid var(--border-subtle);
+}
+
+/* Restore zoom chip look inside the overlay */
+#pdf-viewer .pdf-controls-overlay .pdf-zoom-display {
+    border: 1px solid var(--accent);
+    color: var(--text-primary);
+}
+
+/* PDF bounding box overlays and lines */
+.pdf-bbox-overlay {
+    position: absolute;
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    --bbox-border-width: 1px;
+    border-width: var(--bbox-border-width);
+    opacity: var(--bbox-opacity);
+}
+
+.pdf-bbox-overlay:hover,
+.pdf-bbox-overlay.hover-sync,
+.pdf-bbox-overlay.selected {
+    --bbox-border-width: 2px;
+    box-shadow: 0 0 0 0.5px var(--accent);
+    background: var(--accent-soft);
+    z-index: 1000;
+}
+
+.pdf-page-overlay-container {
+    pointer-events: none;
+}
+
+.pdf-page-overlay-container .pdf-bbox-overlay {
+    pointer-events: auto;
+}
+
+/* Connection lines - now handled by SVG overlay in 0_layout.css */
+

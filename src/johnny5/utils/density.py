@@ -1,196 +1,117 @@
 """Johnny5 density calculation utilities
 
-This module provides functions to compute horizontal and vertical density
-of page elements for context-aware fixup processing.
+This module provides functions to compute density profiles for page elements.
 """
 
 import logging
-import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def compute_horizontal_density(elements: List[Dict[str, Any]]) -> Dict[str, float]:
+def _extract_bboxes(elements: List[Dict[str, Any]]) -> List[Tuple[float, float, float, float]]:
+    """Extract valid bounding boxes from elements."""
+    bboxes: List[Tuple[float, float, float, float]] = []
+    for elem in elements:
+        bbox = elem.get("bbox", [0, 0, 0, 0])
+        if len(bbox) == 4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]:
+            bboxes.append((bbox[0], bbox[1], bbox[2], bbox[3]))
+    return bboxes
+
+
+def _merge_ranges(ranges: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    """Merge overlapping or adjacent ranges."""
+    if not ranges:
+        return []
+
+    sorted_ranges = sorted(ranges, key=lambda r: r[0])
+    merged: List[List[float]] = []
+
+    for start, end in sorted_ranges:
+        if start >= end:
+            continue
+
+        if not merged:
+            merged.append([start, end])
+        else:
+            last = merged[-1]
+            if start <= last[1]:
+                last[1] = max(last[1], end)
+            else:
+                merged.append([start, end])
+
+    return [(start, end) for start, end in merged]
+
+
+def _calculate_coverage(
+    ranges: List[Tuple[float, float]], clamp_min: float, clamp_max: float
+) -> float:
+    """Calculate total coverage from merged ranges, clamped to bounds."""
+    merged = _merge_ranges(ranges)
+    total = 0.0
+    for start, end in merged:
+        start_clamped = max(clamp_min, min(start, clamp_max))
+        end_clamped = max(clamp_min, min(end, clamp_max))
+        total += end_clamped - start_clamped
+    return total
+
+
+def calculate_density(
+    elements: List[Dict[str, Any]],
+    page_width: float,
+    page_height: float,
+    axis: Literal["x", "y"],
+) -> List[Tuple[float, float]]:
     """
-    Compute horizontal density distribution of page elements.
+    Calculate density profile for a page along a given axis.
 
-    Args:
-        elements: List of page elements with bbox coordinates
-
-    Returns:
-        Dictionary containing horizontal density metrics
-    """
-    if not elements:
-        return {"left": 0.0, "center": 0.0, "right": 0.0}
-
-    # Extract bbox coordinates
-    bboxes = [elem.get("bbox", [0, 0, 0, 0]) for elem in elements]
-
-    # Calculate horizontal density zones
-    left_density = sum(1 for bbox in bboxes if bbox[0] < 0.33) / len(bboxes)
-    center_density = sum(1 for bbox in bboxes if 0.33 <= bbox[0] <= 0.67) / len(bboxes)
-    right_density = sum(1 for bbox in bboxes if bbox[0] > 0.67) / len(bboxes)
-
-    return {
-        "left": left_density,
-        "center": center_density,
-        "right": right_density,
-    }
-
-
-def compute_vertical_density(elements: List[Dict[str, Any]]) -> Dict[str, float]:
-    """
-    Compute vertical density distribution of page elements.
-
-    Args:
-        elements: List of page elements with bbox coordinates
-
-    Returns:
-        Dictionary containing vertical density metrics
-    """
-    if not elements:
-        return {"top": 0.0, "middle": 0.0, "bottom": 0.0}
-
-    # Extract bbox coordinates
-    bboxes = [elem.get("bbox", [0, 0, 0, 0]) for elem in elements]
-
-    # Calculate vertical density zones
-    top_density = sum(1 for bbox in bboxes if bbox[1] < 0.33) / len(bboxes)
-    middle_density = sum(1 for bbox in bboxes if 0.33 <= bbox[1] <= 0.67) / len(bboxes)
-    bottom_density = sum(1 for bbox in bboxes if bbox[1] > 0.67) / len(bboxes)
-
-    return {
-        "top": top_density,
-        "middle": middle_density,
-        "bottom": bottom_density,
-    }
-
-
-def calculate_density(elements: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Calculate comprehensive density metrics for page elements.
-
-    Args:
-        elements: List of page elements with bbox coordinates
-
-    Returns:
-        Dictionary containing both horizontal and vertical density metrics
-    """
-    return {
-        "horizontal": compute_horizontal_density(elements),
-        "vertical": compute_vertical_density(elements),
-    }
-
-
-def compute_density_arrays(
-    elements: List[Dict[str, Any]], page_width: float, page_height: float, resolution: int = None
-) -> Tuple[List[float], List[float]]:
-    """
-    Compute density arrays for visualization.
+    This is an analytic calculation that computes density at all transition points
+    where bounding boxes start or end, providing exact density values.
 
     Args:
         elements: List of page elements with bbox coordinates
         page_width: Page width in points
         page_height: Page height in points
-        resolution: Resolution for density arrays (auto-calculated if None)
+        axis: 'x' for horizontal density (fraction of height covered at each X),
+              'y' for vertical density (fraction of width covered at each Y)
 
     Returns:
-        Tuple of (x_density_array, y_density_array)
+        List of (axis_value, density_value) tuples where:
+        - axis_value: Position along the axis (in points) at transition points
+        - density_value: Fraction (0.0-1.0) of the perpendicular dimension covered
     """
-    if not elements:
-        return [], []
-
-    # Extract bounding boxes
-    bboxes = []
-    for elem in elements:
-        bbox = elem.get("bbox", [0, 0, 0, 0])
-        if len(bbox) == 4:
-            bboxes.append(bbox)
-
+    bboxes = _extract_bboxes(elements)
     if not bboxes:
-        return [], []
+        return []
 
-    # Calculate resolution if not provided
-    if resolution is None:
-        # Find the smallest meaningful dimension across all bounding boxes
-        all_coords = []
-        for bbox in bboxes:
-            all_coords.extend(bbox)
+    # Determine axis configuration
+    if axis == "y":
+        axis_length = page_height
+        perp_length = page_width
+    else:  # axis == "x"
+        axis_length = page_width
+        perp_length = page_height
 
-        if all_coords:
-            min_dimension = min(
-                min(abs(bbox[2] - bbox[0]), abs(bbox[3] - bbox[1]))
-                for bbox in bboxes
-                if bbox[2] > bbox[0] and bbox[3] > bbox[1]
-            )
-            # Use 1/10th of smallest dimension as resolution, with reasonable bounds
-            resolution = max(10, min(200, int(min_dimension / 10)))
-        else:
-            resolution = 50
+    # Collect all the density impulses
+    impulses: List[Tuple[float, float]] = []
+    for x0, y0, x1, y1 in bboxes:
+        if axis == "y":
+            density = (x1 - x0) / perp_length
+            impulses.append((y0, +density))
+            impulses.append((y1, -density))
+        else:  # axis == "x"
+            density = (y1 - y0) / perp_length
+            impulses.append((x0, +density))
+            impulses.append((x1, -density))
 
-    # Create density grids
-    x_density = np.zeros(resolution)
-    y_density = np.zeros(resolution)
+    # sort by the start of the impulse
+    impulses.sort(key=lambda x: x[0])
 
-    # Normalize coordinates to [0, 1] range
-    for bbox in bboxes:
-        x0, y0, x1, y1 = bbox
+    # accumulate the impulses
+    profile: List[Tuple[float, float]] = [(0.0, 0.0)]
+    for a, density in impulses:
+        profile.append((a, density + profile[-1][1]))
+    profile.append((profile[-1][0], 0.0))
+    profile.append((axis_length, 0.0))
 
-        # Convert to normalized coordinates
-        norm_x0 = max(0, min(1, x0 / page_width))
-        norm_x1 = max(0, min(1, x1 / page_width))
-        norm_y0 = max(0, min(1, y0 / page_height))
-        norm_y1 = max(0, min(1, y1 / page_height))
-
-        # Calculate grid indices
-        x_start = int(norm_x0 * resolution)
-        x_end = int(norm_x1 * resolution)
-        y_start = int(norm_y0 * resolution)
-        y_end = int(norm_y1 * resolution)
-
-        # Add density to grids
-        for i in range(max(0, x_start), min(resolution, x_end + 1)):
-            x_density[i] += 1
-
-        for i in range(max(0, y_start), min(resolution, y_end + 1)):
-            y_density[i] += 1
-
-    return x_density.tolist(), y_density.tolist()
-
-
-def calculate_document_resolution(pages: List[Dict[str, Any]]) -> int:
-    """
-    Calculate document-wide resolution parameter based on all bounding boxes.
-
-    Args:
-        pages: List of page data with elements
-
-    Returns:
-        Resolution parameter for density arrays
-    """
-    all_bboxes = []
-
-    for page in pages:
-        for element in page.get("elements", []):
-            bbox = element.get("bbox", [0, 0, 0, 0])
-            if len(bbox) == 4 and bbox[2] > bbox[0] and bbox[3] > bbox[1]:
-                all_bboxes.append(bbox)
-
-    if not all_bboxes:
-        return 50  # Default resolution
-
-    # Find smallest meaningful dimension
-    min_dimensions = []
-    for bbox in all_bboxes:
-        width = bbox[2] - bbox[0]
-        height = bbox[3] - bbox[1]
-        min_dimensions.append(min(width, height))
-
-    if min_dimensions:
-        min_dimension = min(min_dimensions)
-        # Use 1/10th of smallest dimension as resolution, with reasonable bounds
-        resolution = max(10, min(200, int(min_dimension / 10)))
-        return resolution
-
-    return 50
+    return profile

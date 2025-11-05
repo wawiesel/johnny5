@@ -5,9 +5,9 @@ information to fixup processing functions.
 """
 
 import logging
-from pathlib import Path
-from typing import Dict, Any, List
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, cast
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,8 @@ class FixupContext:
         """
         for page in self.pages:
             if page.get("page_number") == page_number:
-                return page.get("elements", [])
+                elements = page.get("elements", [])
+                return cast(List[Dict[str, Any]], elements)
         return []
 
     def get_elements_by_type(self, element_type: str) -> List[Dict[str, Any]]:
@@ -62,9 +63,10 @@ class FixupContext:
         Returns:
             List of elements matching the specified type
         """
-        elements = []
+        elements: List[Dict[str, Any]] = []
         for page in self.pages:
-            for element in page.get("elements", []):
+            page_elements = cast(List[Dict[str, Any]], page.get("elements", []))
+            for element in page_elements:
                 if element.get("type") == element_type:
                     elements.append(element)
         return elements

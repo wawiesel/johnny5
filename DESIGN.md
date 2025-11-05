@@ -93,6 +93,27 @@ PDF (input)
 - Static under `web/static`, templates under `web/templates`.
 - Assumes local files exist; serves visualization and debugging tools.
 
+#### 2.4.1 Web Viewer Architecture
+The JavaScript codebase is organized into modular classes that follow a consistent pattern:
+- Each module is a class that takes the main `viewer` instance as a constructor parameter
+- Modules communicate through the shared `viewer` object, accessing properties and other modules via `this.viewer`
+- The main `Johnny5Viewer` class orchestrates all modules and maintains the public API
+
+**Module Structure:**
+- `app.js` - Main orchestrator containing all viewer functionality
+- `density-charts.js` - Density chart rendering and scrolling (separate module)
+- `resize.js` - Resize handling utilities
+
+All core functionality (PDF loading, rendering, annotations, grids, rulers, connection lines, label toggles, logging, theme management) is implemented within the `Johnny5Viewer` class in `app.js`.
+
+**Initialization Flow:**
+1. `Johnny5Viewer` constructor initializes internal state and creates the `DensityCharts` instance
+2. `init()` method sets up PDF.js, theme toggle, event listeners, and WebSocket
+3. `loadPDFFromServer()` loads the PDF and renders pages
+4. `renderAllPages()` draws all grids and rulers (PDF grid, Y-density grid, X-density grid, annotations grid, annotation list grid)
+5. If disassembly data is available, `loadAllPageData()` loads annotations and density charts
+6. Grids are redrawn after data loads to ensure synchronization
+
 ### 2.5 watcher.py
 - `watch_fixups(paths: list[Path], on_change: Callable[[], None])`
 - Debounce 250–500 ms. Broadcast WS event after successful re-fixup.
@@ -123,6 +144,7 @@ See SPEC.md for error handling specifications. Implementation follows the struct
 * Page rasterization via PyMuPDF directly; cache pixmaps by `(page, dpi)`.
 * Density/margin computations vectorized with NumPy where beneficial.
 * Avoid re-parsing PDF when only fixups change.
+* **Dynamic/Lazy Loading**: Grid overlays, density charts, and page canvases must be loaded on-demand (one page at a time) to support large PDFs (e.g., 2000+ pages) without exhausting memory. Canvas elements are created per-page and can be garbage collected when scrolled out of view.
 
 ## 6. Security
 
