@@ -724,7 +724,15 @@ class Johnny5Viewer {
 
     connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/logs`;
+
+        // Fix: 0.0.0.0 is not valid for WebSocket connections, use localhost instead
+        let host = window.location.host;
+        if (host.startsWith('0.0.0.0:')) {
+            host = host.replace('0.0.0.0:', 'localhost:');
+        }
+
+        const wsUrl = `${protocol}//${host}/logs`;
+        this.addPdfLogEntry(`Connecting to WebSocket: ${wsUrl}`, 'info');
 
         this.websocket = new WebSocket(wsUrl);
         let websocketConnected = false;
