@@ -111,7 +111,7 @@ body button:hover {
 }
 
 /* Theme selector indicator */
-#dark-mode-selector {
+#color-mode-selector {
     grid-row: 1;
     grid-column: 1;
     position: relative;
@@ -131,18 +131,18 @@ body button:hover {
     padding: 0;
 }
 
-#dark-mode-selector:hover {
+#color-mode-selector:hover {
     border-color: var(--accent);
 }
 
-#dark-mode-selector .theme-glyph {
+#color-mode-selector .theme-glyph {
     font-size: 0.95rem;
     font-weight: 600;
     line-height: 1;
     pointer-events: none;
 }
 
-#dark-mode-selector .indicator-status {
+#color-mode-selector .indicator-status {
     position: absolute;
     bottom: 6px;
     left: 50%;
@@ -158,22 +158,22 @@ body button:hover {
     text-shadow: var(--shadow-soft);
 }
 
-#dark-mode-selector.loading .indicator-status,
-#dark-mode-selector.error .indicator-status {
+#color-mode-selector.loading .indicator-status,
+#color-mode-selector.error .indicator-status {
     opacity: 1;
 }
 
-#dark-mode-selector.error .indicator-status {
+#color-mode-selector.error .indicator-status {
     color: var(--overlay-text);
 }
 
 /* State-specific colors - rely on theme variables */
-#dark-mode-selector.loading {
+#color-mode-selector.loading {
     background-color: var(--surface-2);
     color: var(--accent-strong);
 }
 
-#dark-mode-selector.error {
+#color-mode-selector.error {
     background-color: var(--surface-2);
     color: var(--error-color);
     border-color: var(--error-color-soft);

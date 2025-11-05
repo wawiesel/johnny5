@@ -698,119 +698,21 @@ class Johnny5Viewer {
         };
     }
 
-    initializeThemeToggle() {
-        const indicator = document.getElementById('color-mode-selector');
-        if (!indicator) {
-            return;
-        }
+    initializeThemeToggle() { ThemeToggle.init(this); }
 
-        indicator.innerHTML = '';
+    applyTheme(mode) { ThemeToggle.applyTheme(this, mode); }
 
-        const glyph = document.createElement('div');
-        glyph.className = 'theme-glyph';
-        indicator.appendChild(glyph);
-        this.themeGlyph = glyph;
+    toggleTheme() { ThemeToggle.toggleTheme(this); }
 
-        const status = document.createElement('span');
-        status.className = 'indicator-status';
-        indicator.appendChild(status);
+    updateThemeGlyph(mode) { ThemeToggle.updateThemeGlyph(this, mode); }
 
-        const baseTitle = 'Toggle color scheme (light/dark/debug)';
-        indicator.dataset.defaultTitle = baseTitle;
-        indicator.title = baseTitle;
-        indicator.setAttribute('role', 'button');
-        indicator.tabIndex = 0;
+    ensureIndicatorStatusElement() { return ThemeToggle.ensureIndicatorStatusElement(); }
 
-        // Get initial theme from server (via data attribute) or default to debug
-        const initialMode = document.body.dataset.initialTheme || 'debug';
-        this.applyTheme(initialMode);
-        this.updateThemeGlyph(initialMode);
+    setIndicatorLoading(message) { ThemeToggle.setIndicatorLoading(message); }
 
-        indicator.addEventListener('click', () => {
-            this.toggleTheme();
-        });
+    setIndicatorReady() { ThemeToggle.setIndicatorReady(); }
 
-        indicator.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                this.toggleTheme();
-            }
-        });
-
-        this.setIndicatorReady();
-    }
-
-    applyTheme(mode) {
-        const body = document.body;
-        // Remove all theme classes
-        body.classList.remove('light-mode', 'dark-mode', 'debug-colors');
-        
-        // Update CSS link to load the correct color scheme
-        let colorLink = document.querySelector('link[href*="/css/color/"]');
-        if (!colorLink) {
-            // Create new link if it doesn't exist
-            colorLink = document.createElement('link');
-            colorLink.rel = 'stylesheet';
-            const baseLink = document.querySelector('link[href="/static/css/0_layout.css"]');
-            if (baseLink) {
-                baseLink.insertAdjacentElement('afterend', colorLink);
-            } else {
-                document.head.appendChild(colorLink);
-            }
-        }
-        colorLink.href = `/static/css/color/${mode}.css`;
-        
-        if (mode === 'light') {
-            body.classList.add('light-mode');
-        } else if (mode === 'debug') {
-            body.classList.add('debug-colors'); // Debug is standalone
-        } else {
-            body.classList.add('dark-mode');
-        }
-        
-        this.updateThemeGlyph(mode);
-    }
-
-    toggleTheme() {
-        const body = document.body;
-        let currentMode = 'dark';
-        if (body.classList.contains('light-mode')) {
-            currentMode = 'light';
-        } else if (body.classList.contains('debug-colors')) {
-            currentMode = 'debug';
-        }
-        
-        // Cycle: light -> dark -> debug -> light
-        const nextMode = currentMode === 'light' ? 'dark' : (currentMode === 'dark' ? 'debug' : 'light');
-        this.applyTheme(nextMode);
-    }
-
-    updateThemeGlyph(mode) {
-        if (!this.themeGlyph) {
-            return;
-        }
-        if (mode === 'light') {
-            this.themeGlyph.textContent = '☀';
-        } else if (mode === 'debug') {
-            this.themeGlyph.textContent = '🐛';
-        } else {
-            this.themeGlyph.textContent = '☾';
-        }
-    }
-
-    ensureIndicatorStatusElement() {
-        const indicator = document.getElementById('color-mode-selector');
-        if (!indicator) {
-            return null;
-        }
-        let status = indicator.querySelector('.indicator-status');
-        if (!status) {
-            status = document.createElement('span');
-            status.className = 'indicator-status';
-            indicator.appendChild(status);
-        }
-        return status;
-    }
+    setIndicatorError(message) { ThemeToggle.setIndicatorError(message); }
 
     async checkDisassemblyStatus() {
         /**
@@ -2301,47 +2203,6 @@ class Johnny5Viewer {
     }
 
     // File input controls will be implemented later in the options panel
-
-    setIndicatorLoading(message) {
-        const indicator = document.getElementById('color-mode-selector');
-        if (indicator) {
-            const status = this.ensureIndicatorStatusElement();
-            if (status) {
-                status.textContent = '⋯';
-            }
-            const label = message || 'Loading…';
-            indicator.title = label;
-            indicator.classList.add('loading');
-            indicator.classList.remove('error', 'ready');
-        }
-    }
-
-    setIndicatorReady() {
-        const indicator = document.getElementById('color-mode-selector');
-        if (indicator) {
-            const status = this.ensureIndicatorStatusElement();
-            if (status) {
-                status.textContent = '';
-            }
-            const baseTitle = indicator.dataset.defaultTitle || 'Toggle light/dark mode';
-            indicator.title = baseTitle;
-            indicator.classList.add('ready');
-            indicator.classList.remove('loading', 'error');
-        }
-    }
-
-    setIndicatorError(message) {
-        const indicator = document.getElementById('color-mode-selector');
-        if (indicator) {
-            const status = this.ensureIndicatorStatusElement();
-            if (status) {
-                status.textContent = '!';
-            }
-            indicator.title = message || 'An error occurred';
-            indicator.classList.add('error');
-            indicator.classList.remove('loading', 'ready');
-        }
-    }
 
     toggleImagePanel(type) {
         const panel = document.getElementById(`indicator-${type}`);
