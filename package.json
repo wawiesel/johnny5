@@ -1,0 +1,15 @@
+{
+  "name": "johnny5",
+  "version": "0.1.0",
+  "description": "Disassemble, fix, and reassemble structured documents using Docling",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "eslint": "^9.0.0"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "lint": "eslint src/johnny5/web/static/**/*.js"
+  }
+}
+
