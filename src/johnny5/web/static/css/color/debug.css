@@ -32,9 +32,10 @@
     /* Bright density colors - easy to see */
     --pdf-page-gap-color: rgba(255, 0, 255, 1);
     --density-fill: rgba(207, 198, 207, 0.7);
-    --y-density-bg: rgba(173, 216, 230, 0.3);
-    --x-density-bg: rgba(255, 182, 193, 0.3);
-    --ann-bg: rgba(144, 238, 144, 0.3);
+    --y-density-bg: #435870; /* Light blue blended with surface-2 */
+    --x-density-bg: #5c4e65; /* Light pink blended with surface-2 */
+    --ann-list-bg: #3b5f57; /* Light green blended with surface-2 */
+    --ann-toggles-bg: #052e16; /* Very dark green for ann-toggles */
     --overlay-bg: rgba(0, 0, 0, 0.7);
     --overlay-bg-hover: rgba(255, 0, 255, 0.3);
     /* High contrast error/alert colors */

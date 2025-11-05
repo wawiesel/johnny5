@@ -7,7 +7,22 @@ There are other things to do of course, this is not an exhaustive list.
 
 ## Fix disassembly refresh
 
-## Fix z-ordering
+- Server: POST `/api/disassemble-refresh` with `{layout_model, enable_ocr, json_dpi}`; force re-run.
+- Server: per-run log file in cache dir; broadcast progress via WebSocket.
+- Client: refresh indicator states — needs-run (red), processing (yellow pulse), up-to-date (green), error (red pulse).
+- Client: persist Docling options; compare current vs loaded to set indicator.
+- Client: auto-refresh on load; on WebSocket completion reload annotations and set indicator green.
+- Types/lint: precise types (e.g., `DisassembleOptions`); satisfy mypy/ruff.
+- Tests: E2E waits for WebSocket completion; verify indicator transitions.
+
+## Fix playwright tests
+
+- Strengthen Playwright tests for z-order and interaction precedence.
+- Restore green CI runs without `--no-verify` by fixing linters:
+  - ESLint (e.g., undefined `ThemeToggle` in `src/johnny5/web/static/app.js`)
+  - Ruff / Ruff-format (Python style)
+  - mypy (add missing annotations, avoid untyped calls)
+- Ensure pre-commit passes locally and in CI without skipping hooks.
 
 ## Enable caching system
 

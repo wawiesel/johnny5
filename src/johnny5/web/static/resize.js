@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
   const handle = document.querySelector('.ann-toggles-resize-handle');
   const pane = document.getElementById('ann-toggles');
-  const annGrid = pane?.parentElement;
-  
-  if (!handle || !pane || !annGrid) return;
+  const annGridChrome = pane?.parentElement; // #ann-col-chrome
+  const annGridContent = document.querySelector('.content-grid #ann-col');
+
+  if (!handle || !pane || !annGridChrome || !annGridContent) return;
 
   handle.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -19,8 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
       let newH = startH - dy; // drag up decreases height; down increases
       if (newH < minH) newH = minH;
       if (newH > maxH) newH = maxH;
-      // Control the 3rd row of #ann-col directly to avoid visual overflow
-      annGrid.style.gridTemplateRows = `var(--topbar-size) 1fr ${newH}px`;
+      // Control the 3rd row of both grids to keep them synchronized
+      const rowTemplate = `var(--topbar-size) 1fr ${newH}px`;
+      annGridChrome.style.gridTemplateRows = rowTemplate;
+      annGridContent.style.gridTemplateRows = rowTemplate;
       pane.style.height = '';
       pane.style.minHeight = '';
       pane.style.maxHeight = '';
