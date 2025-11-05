@@ -40,31 +40,3 @@ jobs:
           JOHNNY5_TEST_PDF: examples/01-one_page/01-one_page.pdf
           JOHNNY5_TEST_FIXUP: johnny5.fixups.example_fixup
         run: bash scripts/check-web
-
-name: CI
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install dependencies
-        run: |
-          pip install hatch ruff black mypy pytest
-          pip install -e .
-      - name: Lint
-        run: |
-          ruff check .
-          black --check .
-          mypy src/johnny5
-      - name: Test
-        run: pytest
