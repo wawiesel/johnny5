@@ -6,8 +6,17 @@ from typing import Any, Dict, List, Optional, Union, cast
 from typing import Awaitable, Callable, MutableMapping
 
 from fastapi import FastAPI, Request, Response, UploadFile, File
+from pydantic import BaseModel
 
 JSONDict = Dict[str, Any]
+
+
+class DisassembleOptions(BaseModel):
+    """Request body for disassemble-refresh endpoint"""
+
+    layout_model: str = "pubtables"
+    enable_ocr: bool = False
+    json_dpi: int = 144
 
 
 def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -> FastAPI:
@@ -33,7 +42,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     import asyncio
     import shutil
     from .disassembler import run_disassemble
-    from .utils.cache import get_cache_path
+    from .utils.cache import get_cache_path, get_cache_dir
 
     app = FastAPI(title="Johnny5 Web Viewer")
 
@@ -43,6 +52,9 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
 
     # Store active WebSocket connections
     active_connections: Dict[str, WebSocket] = {}
+
+    # Store the main event loop for thread-safe async operations
+    main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     # Store structure data in memory (no cache dependency)
     structure_data: JSONDict = {}
@@ -86,7 +98,9 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             print(f"❌ Failed to load structure data: {e}")
             structure_data = {}
 
-    async def run_disassembly_background(pdf_path: Path, fixup_module: str) -> None:
+    async def run_disassembly_background(
+        pdf_path: Path, fixup_module: str, options: DisassembleOptions
+    ) -> None:
         """Run disassembly in background thread and update status"""
         nonlocal disassembly_status
         from datetime import datetime
@@ -103,13 +117,18 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             cache_key = await asyncio.to_thread(
                 run_disassemble,
                 pdf=pdf_path,
-                layout_model="pubtables",
-                enable_ocr=False,
-                json_dpi=300,
+                layout_model=options.layout_model,
+                enable_ocr=options.enable_ocr,
+                json_dpi=options.json_dpi,
                 fixup=fixup_module,
+                force_refresh=True,  # Always force refresh when user explicitly requests it
             )
             json_path = get_cache_path(cache_key, "structure")
             load_structure_data(json_path)
+
+            # Get log file path
+            log_dir = get_cache_dir("logs")
+            log_file = log_dir / f"{cache_key}.log"
 
             disassembly_status["status"] = "completed"
             disassembly_status["message"] = f"Disassembly completed for {pdf_path.name}"
@@ -120,6 +139,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
                 "type": "disassembly_complete",
                 "status": "completed",
                 "message": disassembly_status["message"],
+                "log_file": str(log_file),
             }
             for conn_id, websocket in list(active_connections.items()):
                 try:
@@ -318,11 +338,12 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             # Set current PDF immediately so it can be viewed
             set_current_pdf(uploaded_pdf, original_name)
 
-            # Trigger background disassembly (non-blocking)
+            # Trigger background disassembly (non-blocking) with default options
             disassembly_logger.info(
                 f"Starting background disassembly for: {file.filename} ({uploaded_pdf.stat().st_size} bytes)"
             )
-            asyncio.create_task(run_disassembly_background(uploaded_pdf, fixup))
+            default_options = DisassembleOptions()
+            asyncio.create_task(run_disassembly_background(uploaded_pdf, fixup, default_options))
 
             return {
                 "success": True,
@@ -333,18 +354,21 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_logger.error(f"Upload failed: {error_msg}", exc_info=True)
             return {"success": False, "error": error_msg}
 
-    @app.post("/api/disassemble-refresh")
-    async def disassemble_refresh() -> JSONDict:
+    @app.post("/api/disassemble-refresh")  # type: ignore[misc]
+    async def disassemble_refresh(options: DisassembleOptions) -> JSONDict:
         """Re-run disassembly on the current server PDF in background"""
         try:
             target_pdf = current_pdf_path
             if not target_pdf.exists():
                 return {"success": False, "error": f"PDF file not found: {target_pdf}"}
 
-            disassembly_logger.info(f"Starting background refresh for PDF: {target_pdf}")
+            disassembly_logger.info(
+                f"Starting background refresh for PDF: {target_pdf} "
+                f"(layout={options.layout_model}, ocr={options.enable_ocr}, dpi={options.json_dpi})"
+            )
 
             # Trigger background disassembly (non-blocking)
-            asyncio.create_task(run_disassembly_background(target_pdf, fixup))
+            asyncio.create_task(run_disassembly_background(target_pdf, fixup, options))
 
             return {
                 "success": True,
@@ -358,20 +382,30 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     @app.websocket("/logs")
     async def websocket_logs(websocket: WebSocket) -> None:
         """WebSocket endpoint for streaming logs"""
-        await websocket.accept()
-        connection_id = f"conn_{len(active_connections)}"
-        active_connections[connection_id] = websocket
-
         try:
-            while True:
-                # Keep connection alive
-                await websocket.receive_text()
-        except WebSocketDisconnect:
-            del active_connections[connection_id]
+            await websocket.accept()
+            connection_id = f"conn_{len(active_connections)}"
+            active_connections[connection_id] = websocket
+            print(f"[WebSocket] Client connected: {connection_id}")
+
+            try:
+                while True:
+                    # Keep connection alive
+                    await websocket.receive_text()
+            except WebSocketDisconnect:
+                print(f"[WebSocket] Client disconnected: {connection_id}")
+                if connection_id in active_connections:
+                    del active_connections[connection_id]
+        except Exception as e:
+            print(f"[WebSocket] Connection error: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Custom log handler to send logs to WebSocket clients
     class WebSocketLogHandler(logging.Handler):
         def emit(self, record: logging.LogRecord) -> None:
+            nonlocal main_loop
+
             log_entry = {
                 "timestamp": record.created,
                 "level": record.levelname,
@@ -389,22 +423,44 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
 
             log_entry["pane"] = pane
 
-            # Send to all active connections
-            for conn_id, websocket in list(active_connections.items()):
-                try:
-                    asyncio.create_task(websocket.send_text(json.dumps(log_entry)))
-                except Exception:
-                    # Remove dead connections
-                    del active_connections[conn_id]
+            # Debug: print to console
+            print(f"[WS Log] {record.name}: {record.getMessage()}")
 
-    # Add the custom handler to our loggers
+            # Send to all active connections using thread-safe method
+            if main_loop and active_connections:
+                print(f"[WS Log] Sending to {len(active_connections)} connection(s)")
+                async def send_log():
+                    for conn_id, websocket in list(active_connections.items()):
+                        try:
+                            await websocket.send_text(json.dumps(log_entry))
+                        except Exception as e:
+                            print(f"[WS Log] Failed to send to {conn_id}: {e}")
+                            # Remove dead connections
+                            if conn_id in active_connections:
+                                del active_connections[conn_id]
+
+                try:
+                    asyncio.run_coroutine_threadsafe(send_log(), main_loop)
+                except Exception as e:
+                    print(f"[WS Log] Failed to schedule send: {e}")
+            else:
+                if not main_loop:
+                    print("[WS Log] No main_loop available")
+                if not active_connections:
+                    print("[WS Log] No active connections")
+
+    # Add the custom handler to the root johnny5 logger to catch all submodules
     handler = WebSocketLogHandler()
     handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     handler.setFormatter(formatter)
 
-    disassembly_logger.addHandler(handler)
-    reconstruction_logger.addHandler(handler)
+    # Attach to root johnny5 logger to catch johnny5.disassembler, johnny5.disassembly, etc.
+    johnny5_logger = logging.getLogger("johnny5")
+    johnny5_logger.addHandler(handler)
+    johnny5_logger.setLevel(logging.DEBUG)
+
+    # Also set levels on specific loggers
     disassembly_logger.setLevel(logging.DEBUG)
     reconstruction_logger.setLevel(logging.DEBUG)
 
@@ -412,6 +468,11 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     @app.on_event("startup")
     async def startup_disassembly() -> None:
         """Run disassembly in background after server starts (if PDF is set)"""
+        nonlocal main_loop
+
+        # Capture the main event loop for thread-safe async operations
+        main_loop = asyncio.get_running_loop()
+
         if hasattr(app.state, "startup_pdf_path") and app.state.startup_pdf_path:
             pdf_path = app.state.startup_pdf_path
             fixup_module = app.state.startup_fixup
@@ -421,7 +482,8 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
                 print(f"❌ Startup PDF not found: {pdf_path}")
                 return
             print(f"🔄 Starting disassembly in background for: {pdf_path}")
-            asyncio.create_task(run_disassembly_background(pdf_path, fixup_module))
+            default_options = DisassembleOptions()
+            asyncio.create_task(run_disassembly_background(pdf_path, fixup_module, default_options))
 
     # Store helper functions as app state for testing/external access
     app.state.load_structure_data = load_structure_data

@@ -24,6 +24,8 @@ class Johnny5Viewer {
         this.highlightedLabels = new Set(); // Labels with persistent highlight
         this.hoveredToggleLabel = null; // Currently hovered toggle label
         this.bboxPadding = 2; // Padding for bounding box expansion (in pixels)
+        this.loadedDoclingOptions = null; // Options used for currently loaded disassembly data
+        this.refreshButton = null; // Reference to refresh button for indicator management
         // Overlay configurations (structured for future multiple sets like 'fixup')
         this.overlayConfigs = {
             primary: {
@@ -112,6 +114,71 @@ class Johnny5Viewer {
     // Clear element cache (call when DOM elements are recreated)
     _clearElementCache() {
         this._elementCache = {};
+    }
+
+    // Disassembly indicator state management
+    updateRefreshIndicator(state) {
+        if (!this.refreshButton) return;
+
+        // Remove all state classes
+        this.refreshButton.classList.remove('up-to-date', 'needs-run', 'processing', 'error');
+
+        // Add the new state class
+        if (state) {
+            this.refreshButton.classList.add(state);
+        }
+    }
+
+    getCurrentDoclingOptions() {
+        return {
+            layoutModel: document.getElementById('docling-layout-select')?.value || 'pubtables',
+            enableOcr: !!document.getElementById('docling-ocr-cb')?.checked,
+            jsonDpi: parseInt(document.getElementById('docling-dpi-input')?.value, 10) || 144
+        };
+    }
+
+    optionsMatch(options1, options2) {
+        if (!options1 || !options2) return false;
+        return options1.layoutModel === options2.layoutModel &&
+               options1.enableOcr === options2.enableOcr &&
+               options1.jsonDpi === options2.jsonDpi;
+    }
+
+    checkAndUpdateIndicator() {
+        const current = this.getCurrentDoclingOptions();
+        if (this.optionsMatch(current, this.loadedDoclingOptions)) {
+            this.updateRefreshIndicator('up-to-date');
+        } else {
+            this.updateRefreshIndicator('needs-run');
+        }
+    }
+
+    async triggerAutoRefresh() {
+        // Trigger automatic disassembly refresh on page load
+        try {
+            // Set processing indicator
+            this.updateRefreshIndicator('processing');
+
+            // Get current options (defaults from localStorage or fallbacks)
+            const options = this.getCurrentDoclingOptions();
+
+            // Trigger refresh
+            const response = await fetch('/api/disassemble-refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(options)
+            });
+
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || 'Auto-refresh failed');
+            }
+
+            // Success - WebSocket will handle completion and update indicator to green
+        } catch (error) {
+            this.addPdfLogEntry(`Auto-refresh failed: ${error.message}`, 'error');
+            this.updateRefreshIndicator('error');
+        }
     }
 
     // Compute the maximum allowed scale so the page does not exceed the viewer width
@@ -406,10 +473,13 @@ class Johnny5Viewer {
                 refreshLabel.textContent = '\u00A0'; // Non-breaking space for consistent spacing
                 
                 const refreshButton = document.createElement('button');
-                refreshButton.className = 'pdf-control-btn disassemble-btn';
+                refreshButton.className = 'pdf-control-btn disassemble-btn needs-run'; // Start with needs-run
                 refreshButton.textContent = 'Refresh';
                 refreshButton.title = 'Refresh disassembly with selected options';
-                
+
+                // Store reference for indicator management
+                this.refreshButton = refreshButton;
+
                 refreshGroup.appendChild(refreshLabel);
                 refreshGroup.appendChild(refreshButton);
                 subRow.appendChild(refreshGroup);
@@ -458,18 +528,20 @@ class Johnny5Viewer {
                 dpiGroup.appendChild(dpiInput);
                 subRow.appendChild(dpiGroup);
 
-                // Set up refresh button event listeners
-                const markDirty = () => refreshButton.classList.add('needs-run');
-                layoutSelect.addEventListener('change', markDirty);
-                ocrCheckbox.addEventListener('change', markDirty);
-                dpiInput.addEventListener('change', markDirty);
+                // Set up change listeners to update indicator
+                const onOptionChange = () => this.checkAndUpdateIndicator();
+                layoutSelect.addEventListener('change', onOptionChange);
+                ocrCheckbox.addEventListener('change', onOptionChange);
+                dpiInput.addEventListener('change', onOptionChange);
                 refreshButton.addEventListener('click', async () => {
                     if (this.pdfDoc) {
                         try {
                             refreshButton.disabled = true;
-                            refreshButton.textContent = 'Refreshing...';
 
-                            // Persist settings
+                            // Set processing indicator
+                            this.updateRefreshIndicator('processing');
+
+                            // Persist settings and update loaded options
                             window.J5.settings.docling = {
                                 layoutModel: layoutSelect.value,
                                 enableOcr: !!ocrCheckbox.checked,
@@ -485,17 +557,16 @@ class Johnny5Viewer {
 
                             const result = await response.json();
                             if (result.success) {
-                                // Refresh started
-                                refreshButton.classList.remove('needs-run');
-                                // WebSocket will trigger loadAllPageData() when disassembly completes
+                                // Refresh started - WebSocket will trigger loadAllPageData() when disassembly completes
+                                // Indicator will be updated to 'up-to-date' when WebSocket confirms completion
                             } else {
                                 throw new Error(result.error || 'Disassembly refresh failed');
                             }
                         } catch (error) {
                             this.addPdfLogEntry(`Failed to start refresh: ${error.message}`, 'error');
+                            this.updateRefreshIndicator('error');
                         } finally {
                             refreshButton.disabled = false;
-                            refreshButton.textContent = 'Refresh';
                         }
                     } else {
                         this.addPdfLogEntry('No PDF loaded', 'warning');
@@ -660,6 +731,7 @@ class Johnny5Viewer {
 
         this.websocket.onopen = () => {
             websocketConnected = true;
+            this.addPdfLogEntry('WebSocket connected', 'info');
             // Clear any polling fallback since WebSocket is working
             if (this.disassemblyPollInterval) {
                 clearInterval(this.disassemblyPollInterval);
@@ -674,6 +746,16 @@ class Johnny5Viewer {
                 // Handle disassembly completion notification
                 if (data.type === 'disassembly_complete') {
                     this.addPdfLogEntry('Disassembly complete', 'info');
+
+                    // Log file path if provided
+                    if (data.log_file) {
+                        this.addPdfLogEntry(`Full log: ${data.log_file}`, 'info');
+                    }
+
+                    // Update loaded options and indicator to up-to-date
+                    this.loadedDoclingOptions = this.getCurrentDoclingOptions();
+                    this.updateRefreshIndicator('up-to-date');
+
                     // Clear polling if active
                     if (this.disassemblyPollInterval) {
                         clearInterval(this.disassemblyPollInterval);
@@ -682,6 +764,7 @@ class Johnny5Viewer {
                     this.loadAllPageData().catch(error => {
                         console.error('Error loading page data after disassembly:', error);
                         this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
+                        this.updateRefreshIndicator('error');
                     });
                     return;
                 }
@@ -696,18 +779,20 @@ class Johnny5Viewer {
                     }
                 }
             } catch (e) {
-                console.error('Failed to parse WebSocket message:', e);
+                this.addPdfLogEntry(`WebSocket message parse error: ${e.message}`, 'error');
             }
         };
 
         this.websocket.onclose = () => {
+            this.addPdfLogEntry('WebSocket disconnected', 'warning');
             // If WebSocket closed and we're waiting for disassembly, start polling fallback
             if (!websocketConnected && this.disassemblyPollInterval === null) {
                 this.startDisassemblyPolling();
             }
         };
 
-        this.websocket.onerror = () => {
+        this.websocket.onerror = (error) => {
+            this.addPdfLogEntry(`WebSocket error: ${error.type || 'connection failed'}`, 'error');
             // If WebSocket fails and we're waiting for disassembly, start polling fallback
             if (!websocketConnected && this.disassemblyPollInterval === null) {
                 this.startDisassemblyPolling();
@@ -829,19 +914,12 @@ class Johnny5Viewer {
             // Fit to width and render PDF first (so user sees something immediately)
             await this.fitWidth();
 
-            // Check if disassembly is complete
-            const isComplete = await this.checkDisassemblyStatus();
-            if (isComplete) {
-                // Disassembly already complete, load annotations immediately
-                this.loadAllPageData().catch(error => {
-                    console.error('Error loading page data:', error);
-                    this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
-                });
-            } else {
-                // Disassembly in progress, WebSocket will trigger load when complete
-                // Start polling as fallback in case WebSocket fails
-                this.startDisassemblyPolling();
-            }
+            // Trigger automatic refresh with default options on page load
+            // This ensures fresh disassembly and sets up the indicator flow
+            await this.triggerAutoRefresh();
+
+            // Note: checkDisassemblyStatus and manual loading removed
+            // Auto-refresh handles the full flow: red → yellow pulsing → green
 
             this.setIndicatorReady();
 

@@ -23,6 +23,7 @@ from .utils.fixup_context import FixupContext
 from .utils.cache import (
     generate_disassemble_cache_key,
     get_cached_file,
+    get_cache_dir,
     save_to_cache,
 )
 
@@ -36,6 +37,7 @@ def run_disassemble(
     enable_ocr: bool,
     json_dpi: int,
     fixup: str,
+    force_refresh: bool = False,
 ) -> str:
     """
     Convert a PDF into Docling lossless JSON with content-based caching.
@@ -43,8 +45,8 @@ def run_disassemble(
     This function implements cache-first behavior:
     1. Generate cache key from PDF content + Docling options
     2. Check if cache exists for this key
-    3. If cache hit: Return cache key (no processing needed)
-    4. If cache miss: Run Docling, save to cache, return cache key
+    3. If cache hit and not forced: Return cache key (no processing needed)
+    4. If cache miss or forced: Run Docling, save to cache, return cache key
 
     Args:
         pdf: Path to the PDF file to process
@@ -52,6 +54,7 @@ def run_disassemble(
         enable_ocr: Whether to enable OCR processing for text extraction
         json_dpi: DPI setting for JSON output generation
         fixup: Module path for fixup processing (hot-reloadable)
+        force_refresh: If True, reprocess even if cache exists (default: False)
 
     Returns:
         16-character cache key identifying the cached structure JSON
@@ -74,31 +77,50 @@ def run_disassemble(
     logger.info(f"Cache key: {cache_key}")
     logger.info(f"PDF checksum: {pdf_checksum}")
 
-    # Step 2: Check if cache exists
-    cached_file = get_cached_file(cache_key, "structure")
-    if cached_file is not None:
-        logger.info(f"Cache hit! Using cached result: {cached_file}")
-        logger.info("Skipping Docling conversion (already processed)")
-        return cache_key
-
-    # Step 3: Cache miss - run Docling conversion
-    logger.info("Cache miss - running Docling conversion")
+    # Set up file logging for detailed output
+    log_dir = get_cache_dir("logs")
+    log_file = log_dir / f"{cache_key}.log"
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    ))
+    logger.addHandler(file_handler)
+    logger.info(f"Full log will be written to: {log_file}")
 
     try:
-        docling_result = _run_docling_conversion(
-            pdf, layout_model, enable_ocr, json_dpi, pdf_checksum
-        )
+        # Step 2: Check if cache exists
+        cached_file = get_cached_file(cache_key, "structure")
+        if cached_file is not None and not force_refresh:
+            logger.info(f"Cache hit! Using cached result: {cached_file}")
+            logger.info("Skipping Docling conversion (already processed)")
+            return cache_key
 
-        # Save to cache with cache key as filename
-        cache_file = save_to_cache(docling_result, cache_key, "structure")
-        logger.info(f"Docling output saved to cache: {cache_file}")
+        # Step 3: Cache miss or forced refresh - run Docling conversion
+        if cached_file is not None:
+            logger.info(f"Cache exists at {cached_file}, but forcing refresh as requested")
+        else:
+            logger.info("Cache miss - running Docling conversion")
 
-    except Exception as e:
-        logger.error(f"Docling conversion failed: {e}")
-        raise ValueError(f"PDF processing failed: {e}") from e
+        try:
+            docling_result = _run_docling_conversion(
+                pdf, layout_model, enable_ocr, json_dpi, pdf_checksum
+            )
 
-    logger.info("PDF disassembly completed successfully")
-    return cache_key
+            # Save to cache with cache key as filename
+            cache_file = save_to_cache(docling_result, cache_key, "structure")
+            logger.info(f"Docling output saved to cache: {cache_file}")
+
+        except Exception as e:
+            logger.error(f"Docling conversion failed: {e}")
+            raise ValueError(f"PDF processing failed: {e}") from e
+
+        logger.info("PDF disassembly completed successfully")
+        return cache_key
+    finally:
+        # Clean up file handler
+        logger.removeHandler(file_handler)
+        file_handler.close()
 
 
 def _run_docling_conversion(
