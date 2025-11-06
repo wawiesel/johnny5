@@ -133,6 +133,54 @@ def reconstruct(content: dict) -> str:
     """Return reconstructed text (QMD)."""
 ```
 
+### Python API
+
+Johnny5 provides Python API functions for programmatic access to disassembly, fixup, extract, and reconstruct stages.
+
+#### `run_disassemble()`
+
+Convert a PDF into Docling lossless JSON with content-based caching.
+
+```python
+from pathlib import Path
+from johnny5.disassembler import run_disassemble
+
+cache_key = run_disassemble(
+    pdf=Path("document.pdf"),
+    layout_model="pubtables",          # Docling layout model
+    enable_ocr=False,                  # Enable OCR processing
+    json_dpi=144,                      # DPI for JSON output
+    fixup="johnny5.fixups.my_fixup",  # Module path for fixup
+    force_refresh=False                # Reprocess even if cached
+)
+# Returns: "a1b2c3d4e5f6g7h8" (16-character cache key)
+```
+
+**Cache-First Behavior:**
+1. Generate cache key from PDF content + Docling options
+2. Check if cache exists for this key
+3. If cache hit and not forced: Return cache key (no processing needed)
+4. If cache miss or forced: Run Docling, save to cache, return cache key
+
+**Parameters:**
+- `pdf` (Path): Path to the PDF file to process
+- `layout_model` (str): Docling layout model (e.g., "pubtables", "doclaynet", "digitaldocmodel", "tableformer")
+- `enable_ocr` (bool): Whether to enable OCR processing for text extraction
+- `json_dpi` (int): DPI setting for JSON output generation (72-600)
+- `fixup` (str): Module path for fixup processing (hot-reloadable)
+- `force_refresh` (bool): If True, reprocess even if cache exists (default: False)
+
+**Returns:**
+- `str`: 16-character cache key identifying the cached structure JSON at `~/.jny5/cache/structure/{cache_key}.json`
+
+**Raises:**
+- `FileNotFoundError`: If PDF file doesn't exist
+- `ValueError`: If PDF processing fails
+
+**Logging:**
+- Detailed processing logs are written to `~/.jny5/cache/logs/{cache_key}.log`
+- Progress and status messages are logged to the configured logger
+
 ### Web Application
 
 The Johnny5 web interface provides a three-column layout for visualizing PDF disassembly and reconstruction processes. The interface is designed with **primary content areas** for the main workflow and **supporting data panels** for debugging and analysis.

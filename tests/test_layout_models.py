@@ -8,6 +8,9 @@ from johnny5.disassembler import get_available_layout_models, verify_layout_mode
 
 def test_get_available_layout_models() -> None:
     """Test that we can get the list of available layout models"""
+    from johnny5.disassembler import get_docling_version
+
+    docling_version = get_docling_version()
     models = get_available_layout_models()
 
     assert isinstance(models, list)
@@ -23,17 +26,35 @@ def test_get_available_layout_models() -> None:
         assert len(model["name"]) > 0
         assert len(model["description"]) > 0
 
+    # Verify models were cached to version-specific file
+    from pathlib import Path
+    import os
+
+    jny5_home = Path(os.environ.get("JNY5_HOME", str(Path.home() / ".jny5")))
+    models_cache = jny5_home / "models" / f"{docling_version}.json"
+    assert models_cache.exists(), f"Models cache should exist at {models_cache}"
+
 
 def test_layout_models_have_expected_entries() -> None:
-    """Test that expected models are in the list"""
+    """Test that expected models are in the list based on Docling version"""
+    from johnny5.disassembler import get_docling_version
+
+    docling_version = get_docling_version()
+    major_version = int(docling_version.split(".")[0])
+
     models = get_available_layout_models()
     model_names = [m["name"] for m in models]
 
-    # Expected models based on Docling documentation
-    expected = ["doclaynet", "pubtables", "digitaldocmodel", "tableformer"]
+    # Expected models vary by Docling version
+    if major_version >= 2:
+        # Docling 2.x uses unified model
+        expected = ["docling_layout_heron"]
+    else:
+        # Docling 1.x models
+        expected = ["doclaynet", "pubtables", "digitaldocmodel", "tableformer"]
 
     for expected_model in expected:
-        assert expected_model in model_names, f"Expected model '{expected_model}' not found"
+        assert expected_model in model_names, f"Expected model '{expected_model}' not found for Docling {docling_version}"
 
 
 def test_verify_layout_model_valid() -> None:

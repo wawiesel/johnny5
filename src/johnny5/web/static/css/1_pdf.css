@@ -386,8 +386,8 @@
 
 /* Green solid dot - up to date */
 #pdf-options .disassemble-btn.up-to-date::after {
-    background: #00ff00;
-    box-shadow: 0 0 0 1px rgba(0, 255, 0, 0.3);
+    background: var(--success-color);
+    box-shadow: 0 0 0 1px var(--success-color-soft);
 }
 
 /* Red solid dot - needs run (options changed) */
@@ -398,8 +398,8 @@
 
 /* Yellow pulsing dot - processing */
 #pdf-options .disassemble-btn.processing::after {
-    background: #ffff00;
-    box-shadow: 0 0 0 1px rgba(255, 255, 0, 0.3);
+    background: var(--log-warning-color);
+    box-shadow: 0 0 0 1px var(--log-warning-color);
     animation: pulse-dot 1.5s ease-in-out infinite;
 }
 

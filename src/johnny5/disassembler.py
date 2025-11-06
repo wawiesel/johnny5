@@ -9,6 +9,7 @@ This module handles the core PDF disassembly workflow:
 import json
 import logging
 import importlib
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -517,68 +518,75 @@ def get_available_layout_models() -> List[Dict[str, str]]:
     """
     Get list of available Docling layout models with descriptions.
 
+    Models are discovered from a version-specific cache file in ~/.jny5/models/{version}.json.
+    If the cache doesn't exist for the current Docling version, falls back to known defaults.
+
     Returns:
-        List of dicts with 'name' and 'description' keys
+        List of dicts with 'name', 'description', and optional 'docs_url' keys
     """
-    models = [
-        {
-            "name": "doclaynet",
-            "description": "Fast - General document layout detection",
-        },
-        {
-            "name": "pubtables",
-            "description": "Accurate - Optimized for tables and publications",
-        },
-        {
-            "name": "digitaldocmodel",
-            "description": "Digital documents - Born-digital PDFs",
-        },
-        {
-            "name": "tableformer",
-            "description": "Table structure - Specialized table parsing",
-        },
-    ]
+    docling_version = get_docling_version()
+
+    # Try to load models from version-specific cache
+    jny5_home = Path(os.environ.get("JNY5_HOME", str(Path.home() / ".jny5")))
+    models_dir = jny5_home / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    models_cache_file = models_dir / f"{docling_version}.json"
+
+    if models_cache_file.exists():
+        try:
+            with open(models_cache_file, "r", encoding="utf-8") as f:
+                cached_models = json.load(f)
+                if isinstance(cached_models, list) and len(cached_models) > 0:
+                    logger.debug(f"Loaded layout models from cache: {models_cache_file}")
+                    return cached_models
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to load models cache: {e}, using defaults")
+
+    # Fall back to known defaults based on major version
+    major_version = int(docling_version.split(".")[0])
+
+    if major_version >= 2:
+        # Docling 2.x uses unified "docling_layout_heron" model
+        # See: https://github.com/DS4SD/docling
+        models = [
+            {
+                "name": "docling_layout_heron",
+                "description": "Unified layout detection model (Docling 2.x)",
+                "docs_url": "https://github.com/DS4SD/docling",
+            },
+        ]
+    else:
+        # Docling 1.x models
+        models = [
+            {
+                "name": "doclaynet",
+                "description": "Fast - General document layout detection",
+            },
+            {
+                "name": "pubtables",
+                "description": "Accurate - Optimized for tables and publications",
+            },
+            {
+                "name": "digitaldocmodel",
+                "description": "Digital documents - Born-digital PDFs",
+            },
+            {
+                "name": "tableformer",
+                "description": "Table structure - Specialized table parsing",
+            },
+        ]
+
+    # Save defaults to cache for future reference and manual editing
+    try:
+        with open(models_cache_file, "w", encoding="utf-8") as f:
+            json.dump(models, f, indent=2, ensure_ascii=False)
+        logger.info(f"Saved default models to cache: {models_cache_file}")
+        logger.info("You can edit this file to customize available models for this Docling version")
+    except IOError as e:
+        logger.warning(f"Failed to save models cache: {e}")
+
     return models
-
-
-def get_available_ocr_engines() -> List[Dict[str, str]]:
-    """
-    Get list of available OCR engines with descriptions.
-
-    Returns:
-        List of dicts with 'name' and 'description' keys
-    """
-    engines = [
-        {
-            "name": "none",
-            "description": "No OCR - Text extraction only",
-        },
-        {
-            "name": "auto",
-            "description": "Automatic - Let Docling choose best engine",
-        },
-        {
-            "name": "easyocr",
-            "description": "EasyOCR - Deep learning based",
-        },
-        {
-            "name": "rapidocr",
-            "description": "RapidOCR - Fast and lightweight",
-        },
-        {
-            "name": "tesseract",
-            "description": "Tesseract CLI - Traditional OCR",
-        },
-        {
-            "name": "tesserocr",
-            "description": "Tesseract Python - Python binding",
-        },
-        {
-            "name": "ocrmac",
-            "description": "OCRmac - macOS Vision framework",
-        },
-    ]
-    return engines
 
 
 def get_docling_version() -> str:

@@ -36,6 +36,8 @@
     --error-color-soft: rgba(255, 107, 107, 0.45);
     --alert-color: #e25555;
     --alert-color-soft: rgba(226, 85, 85, 0.35);
+    --success-color: #00ff00;
+    --success-color-soft: rgba(0, 255, 0, 0.3);
     --overlay-text: #ffffff;
     --code-bg-fallback: var(--surface-3);
     --code-text: var(--text-primary);
