@@ -130,36 +130,46 @@ test.describe('Disassemble (no fixup) workflow', () => {
     const checkboxCount = await checkboxes.count();
     
     if (checkboxCount > 0) {
-      // Verify checkboxes exist and have associated code/name elements
-      const firstCheckbox = checkboxes.first();
-      const checkboxId = await firstCheckbox.getAttribute('id');
+      // Find first checkbox that's not the none/all toggle (which has code/name hidden)
+      let firstCheckbox = null;
+      let checkboxId = null;
+      for (let i = 0; i < checkboxCount; i++) {
+        const checkbox = checkboxes.nth(i);
+        checkboxId = await checkbox.getAttribute('id');
+        if (checkboxId !== 'ann-none-all') {
+          firstCheckbox = checkbox;
+          break;
+        }
+      }
       
-      // Verify toggle row structure
-      const toggleRow = page.locator(`.ann-toggle-row input[type="checkbox"]#${checkboxId}`).locator('..').first();
-      await expect(toggleRow).toBeVisible();
-      
-      // Check for code and name elements in toggle row
-      const hasCode = await toggleRow.locator('.ann-code').count();
-      const hasName = await toggleRow.locator('.ann-toggle-row-name').count();
-      
-      // Should have either code or name (or both); be lenient if checkbox is a group controller
-      expect(hasCode + hasName).toBeGreaterThan(0);
-      
-      // Test toggle functionality - uncheck first checkbox (skip none/all checkbox)
-      if (checkboxId !== 'ann-none-all' && await firstCheckbox.isChecked()) {
-        await firstCheckbox.uncheck();
+      if (firstCheckbox && checkboxId) {
+        // Verify toggle row structure
+        const toggleRow = page.locator(`.ann-toggle-row input[type="checkbox"]#${checkboxId}`).locator('..').first();
+        await expect(toggleRow).toBeVisible();
         
-        // Verify that annotation overlays are filtered (if any exist)
-        const visibleOverlays = await page.evaluate(() => {
-          const overlays = document.querySelectorAll('.pdf-bbox-overlay');
-          return Array.from(overlays).filter(el => {
-            const style = window.getComputedStyle(el);
-            return style.display !== 'none';
-          }).length;
-        });
+        // Check for code and name elements in toggle row
+        const hasCode = await toggleRow.locator('.ann-code').count();
+        const hasName = await toggleRow.locator('.ann-toggle-row-name').count();
         
-        // At least some overlays should be hidden when a label is unchecked
-        // (if there are overlays and they match the unchecked label)
+        // Should have either code or name (or both)
+        expect(hasCode + hasName).toBeGreaterThan(0);
+        
+        // Test toggle functionality - uncheck first checkbox
+        if (await firstCheckbox.isChecked()) {
+          await firstCheckbox.uncheck();
+          
+          // Verify that annotation overlays are filtered (if any exist)
+          const visibleOverlays = await page.evaluate(() => {
+            const overlays = document.querySelectorAll('.pdf-bbox-overlay');
+            return Array.from(overlays).filter(el => {
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none';
+            }).length;
+          });
+          
+          // At least some overlays should be hidden when a label is unchecked
+          // (if there are overlays and they match the unchecked label)
+        }
       }
     }
   });

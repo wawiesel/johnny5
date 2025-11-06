@@ -186,6 +186,7 @@ body button:hover {
     --topbar-size: 40px; /* square indicators */
     background-color: var(--surface-1);
     position: relative; /* Positioning context for layers */
+    column-gap: 0; /* No column gap in layout */
 }
 
 /* Layer 1: Content grid (z-index: 10) - PDF viewer, annotation list, rec viewer */
