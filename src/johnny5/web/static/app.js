@@ -722,18 +722,22 @@ class Johnny5Viewer {
         }
 
         // Poll every 2 seconds to check if disassembly completed
-        this.disassemblyPollInterval = setInterval(async () => {
-            const isComplete = await this.checkDisassemblyStatus();
-            if (isComplete) {
-                // Disassembly completed, load annotations
-                clearInterval(this.disassemblyPollInterval);
-                this.disassemblyPollInterval = null;
-                this.addPdfLogEntry('Disassembly complete (via polling)', 'info');
-                this.loadAllPageData().catch(error => {
-                    console.error('Error loading page data after disassembly:', error);
-                    this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
-                });
-            }
+        this.disassemblyPollInterval = setInterval(() => {
+            (async () => {
+                const isComplete = await this.checkDisassemblyStatus();
+                if (isComplete) {
+                    // Disassembly completed, load annotations
+                    clearInterval(this.disassemblyPollInterval);
+                    this.disassemblyPollInterval = null;
+                    this.addPdfLogEntry('Disassembly complete (via polling)', 'info');
+                    this.loadAllPageData().catch(error => {
+                        console.error('Error loading page data after disassembly:', error);
+                        this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
+                    });
+                }
+            })().catch(error => {
+                console.error('Error in disassembly polling:', error);
+            });
         }, 2000); // Poll every 2 seconds
     }
 
