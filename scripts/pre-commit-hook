@@ -18,35 +18,24 @@ progress_ticker() {
     echo " (${elapsed}s)"
 }
 
-echo "🔎 Running JS/CSS linters (if installed)"
+echo "🔎 Running web checks (ESLint + Playwright)"
 
 # Detect project root (this script lives in scripts/)
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
-# ESLint first (fail fast)
-if command -v npx >/dev/null 2>&1 && [ -f "$ROOT_DIR/eslint.config.cjs" ]; then
-    echo "▶ ESLint: src/johnny5/web/static/**/*.js"
-    if ! (cd "$ROOT_DIR" && npx --yes eslint "src/johnny5/web/static/**/*.js"); then
-        echo "❌ ESLint failed"
-        exit 1
-    else
-        echo "✅ ESLint passed"
-    fi
-else
-    echo "ℹ️  ESLint not configured (skipping). Add eslint.config.cjs to enable."
+# Single web check wrapper (ESLint + Playwright)
+if ! (bash "$ROOT_DIR/scripts/check-web"); then
+    echo "❌ Web checks failed"
+    exit 1
 fi
 
-# Stylelint next
-if command -v npx >/dev/null 2>&1 && [ -f "$ROOT_DIR/.stylelintrc.json" ]; then
-    echo "▶ Stylelint: src/johnny5/web/static/**/*.css"
-    if ! (cd "$ROOT_DIR" && npx --yes stylelint "src/johnny5/web/static/**/*.css"); then
-        echo "❌ Stylelint failed"
-        exit 1
-    else
-        echo "✅ Stylelint passed"
-    fi
-else
-    echo "ℹ️  Stylelint not configured (skipping). Add .stylelintrc.json to enable."
+echo ""
+echo "🧪 Running Python tests and linters (venv required)"
+
+# Single Python check wrapper (pytest + ruff + mypy)
+if ! (bash "$ROOT_DIR/scripts/check-python"); then
+    echo "❌ Python checks failed"
+    exit 1
 fi
 
 echo ""
@@ -137,5 +126,7 @@ else
     echo ""
     echo "✅ All example README commands validated successfully!"
 fi
+
+# Playwright already run inside check-web
 
 exit 0

@@ -1,5 +1,5 @@
 // Johnny5 Web Viewer JavaScript
-/* global FormData, localStorage */
+/* global FormData, localStorage, ThemeToggle */
 
 // (helper removed)
 
@@ -656,9 +656,15 @@ class Johnny5Viewer {
         const wsUrl = `${protocol}//${window.location.host}/logs`;
 
         this.websocket = new WebSocket(wsUrl);
+        let websocketConnected = false;
 
         this.websocket.onopen = () => {
-            // Silent - WebSocket is optional
+            websocketConnected = true;
+            // Clear any polling fallback since WebSocket is working
+            if (this.disassemblyPollInterval) {
+                clearInterval(this.disassemblyPollInterval);
+                this.disassemblyPollInterval = null;
+            }
         };
 
         this.websocket.onmessage = (event) => {
@@ -668,6 +674,11 @@ class Johnny5Viewer {
                 // Handle disassembly completion notification
                 if (data.type === 'disassembly_complete') {
                     this.addPdfLogEntry('Disassembly complete', 'info');
+                    // Clear polling if active
+                    if (this.disassemblyPollInterval) {
+                        clearInterval(this.disassemblyPollInterval);
+                        this.disassemblyPollInterval = null;
+                    }
                     this.loadAllPageData().catch(error => {
                         console.error('Error loading page data after disassembly:', error);
                         this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
@@ -690,12 +701,45 @@ class Johnny5Viewer {
         };
 
         this.websocket.onclose = () => {
-            // Silent - WebSocket is optional for live logs
+            // If WebSocket closed and we're waiting for disassembly, start polling fallback
+            if (!websocketConnected && this.disassemblyPollInterval === null) {
+                this.startDisassemblyPolling();
+            }
         };
 
         this.websocket.onerror = () => {
-            // Silent - WebSocket is optional for live logs
+            // If WebSocket fails and we're waiting for disassembly, start polling fallback
+            if (!websocketConnected && this.disassemblyPollInterval === null) {
+                this.startDisassemblyPolling();
+            }
         };
+    }
+
+    startDisassemblyPolling() {
+        /**
+         * Poll disassembly status as fallback when WebSocket fails
+         */
+        if (this.disassemblyPollInterval) {
+            return; // Already polling
+        }
+
+        // Poll every 2 seconds to check if disassembly completed
+        this.disassemblyPollInterval = setInterval(() => {
+            this.checkDisassemblyStatus().then(isComplete => {
+                if (isComplete) {
+                    // Disassembly completed, load annotations
+                    clearInterval(this.disassemblyPollInterval);
+                    this.disassemblyPollInterval = null;
+                    this.addPdfLogEntry('Disassembly complete (via polling)', 'info');
+                    this.loadAllPageData().catch(error => {
+                        console.error('Error loading page data after disassembly:', error);
+                        this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
+                    });
+                }
+            }).catch(error => {
+                console.error('Error in disassembly polling:', error);
+            });
+        }, 2000); // Poll every 2 seconds
     }
 
     initializeThemeToggle() { ThemeToggle.init(this); }
@@ -795,6 +839,8 @@ class Johnny5Viewer {
                 });
             } else {
                 // Disassembly in progress, WebSocket will trigger load when complete
+                // Start polling as fallback in case WebSocket fails
+                this.startDisassemblyPolling();
             }
 
             this.setIndicatorReady();

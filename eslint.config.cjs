@@ -22,7 +22,8 @@ module.exports = [
         fetch: "readonly",
         getComputedStyle: "readonly",
         pdfjsLib: "readonly",
-        DensityCharts: "readonly"
+        DensityCharts: "readonly",
+        ThemeToggle: "readonly"
       }
     },
     rules: {

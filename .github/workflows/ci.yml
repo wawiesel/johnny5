@@ -1,27 +1,45 @@
 name: CI
+
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  test:
+    runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install dependencies
+          python-version: '3.11'
+
+      - name: Create venv and install Python deps
         run: |
-          pip install hatch ruff black mypy pytest
-          pip install -e .
-      - name: Lint
+          python -m venv venv
+          ./venv/bin/pip install -U pip
+          ./venv/bin/pip install -e . pytest ruff mypy
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+        if: ${{ hashFiles('package.json') != '' }}
+
+      - name: Install Node deps
         run: |
-          ruff check .
-          black --check .
-          mypy src/johnny5
-      - name: Test
-        run: pytest
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npx --yes playwright install --with-deps
+        if: ${{ hashFiles('package.json') != '' }}
+
+      - name: Python checks (pytest, ruff, mypy)
+        run: bash scripts/check-python
+
+      - name: Web checks (ESLint + Playwright)
+        env:
+          JOHNNY5_TEST_PDF: examples/01-one_page/01-one_page.pdf
+          JOHNNY5_TEST_FIXUP: johnny5.fixups.example_fixup
+        timeout-minutes: 5
+        run: bash scripts/check-web

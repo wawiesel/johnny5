@@ -26,5 +26,22 @@ fi
 
 echo "🎭 Running Playwright end-to-end tests..."
 # Use reporter=line to keep hook output compact.
-PLAYWRIGHT_HTML_REPORT=0 npx --yes playwright test --reporter=line
+# Prefer installed playwright if available, fallback to npx
+PLAYWRIGHT_CMD=""
+if [ -f "$ROOT_DIR/node_modules/.bin/playwright" ]; then
+    PLAYWRIGHT_CMD="$ROOT_DIR/node_modules/.bin/playwright"
+elif [ -f "$ROOT_DIR/node_modules/@playwright/test/cli.js" ]; then
+    PLAYWRIGHT_CMD="node $ROOT_DIR/node_modules/@playwright/test/cli.js"
+else
+    PLAYWRIGHT_CMD="npx --yes playwright"
+fi
+
+# Rely on Playwright's built-in timeouts:
+# - Test timeout: 90s (from config) or overridden by --timeout flag
+# - webServer timeout: 120s (from config)
+# - GitHub Actions step timeout: 5min (from workflow)
+PLAYWRIGHT_HTML_REPORT=0 $PLAYWRIGHT_CMD test --reporter=line || {
+    echo "❌ Playwright tests failed"
+    exit 1
+}
 echo "✅ Playwright tests passed"

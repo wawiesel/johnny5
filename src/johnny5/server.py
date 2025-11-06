@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
+from typing import Awaitable, Callable, MutableMapping
 
 from fastapi import FastAPI, Request, Response, UploadFile, File
 
@@ -144,14 +145,14 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     templates_path = Path(__file__).parent / "web" / "templates"
     templates = Jinja2Templates(directory=str(templates_path))
 
-    @app.get("/", response_class=HTMLResponse)  # type: ignore[misc]
+    @app.get("/", response_class=HTMLResponse)
     async def root(request: Request) -> Response:
         return templates.TemplateResponse(
             "index.html",
             {"request": request, "pdf_path": str(current_pdf_path), "color_scheme": color_scheme},
         )
 
-    @app.get("/api/pdf")  # type: ignore[misc]
+    @app.get("/api/pdf")
     async def serve_pdf(_file: Optional[str] = None) -> FileResponse:
         """Serve the PDF file for PDF.js"""
         server_logger = logging.getLogger("johnny5.server")
@@ -174,7 +175,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
         server_logger.error(error_msg)
         raise HTTPException(status_code=404, detail=error_msg)
 
-    @app.get("/api/pdf-info")  # type: ignore[misc]
+    @app.get("/api/pdf-info")
     async def pdf_info() -> JSONDict:
         """Get PDF information for the web viewer"""
         return {
@@ -183,12 +184,12 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             "fixup_module": fixup,
         }
 
-    @app.get("/api/disassembly-status")  # type: ignore[misc]
+    @app.get("/api/disassembly-status")
     async def get_disassembly_status() -> JSONDict:
         """Get current disassembly status for client polling"""
         return disassembly_status.copy()
 
-    @app.get("/api/structure/{page}")  # type: ignore[misc]
+    @app.get("/api/structure/{page}")
     async def get_structure(page: int) -> JSONDict:
         """Get structure data for a specific page"""
         server_logger = logging.getLogger("johnny5.server")
@@ -217,7 +218,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             server_logger.error(f"Error in get_structure: {e}", exc_info=True)
             return {"error": f"Failed to load structure: {str(e)}"}
 
-    @app.get("/api/density/{page}")  # type: ignore[misc]
+    @app.get("/api/density/{page}")
     async def get_density(page: int) -> JSONDict:
         """Get density data for visualization"""
         server_logger = logging.getLogger("johnny5.server")
@@ -249,7 +250,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             server_logger.error(f"Error in get_density: {e}", exc_info=True)
             return {"error": f"Failed to load density data: {str(e)}"}
 
-    @app.post("/api/dump-density")  # type: ignore[misc]
+    @app.post("/api/dump-density")
     async def dump_density() -> JSONDict:
         """Dump all density data to a JSON file on disk"""
         try:
@@ -297,7 +298,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
         except Exception as e:
             return {"error": f"Failed to dump density data: {str(e)}"}
 
-    @app.post("/api/disassemble")  # type: ignore[misc]
+    @app.post("/api/disassemble")
     async def disassemble_pdf(file: UploadFile = File(...)) -> JSONDict:
         """Upload PDF and trigger docling disassembly in background"""
         try:
@@ -332,7 +333,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_logger.error(f"Upload failed: {error_msg}", exc_info=True)
             return {"success": False, "error": error_msg}
 
-    @app.post("/api/disassemble-refresh")  # type: ignore[misc]
+    @app.post("/api/disassemble-refresh")
     async def disassemble_refresh() -> JSONDict:
         """Re-run disassembly on the current server PDF in background"""
         try:
@@ -354,7 +355,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_logger.error(f"Disassembly refresh failed: {error_msg}", exc_info=True)
             return {"success": False, "error": error_msg}
 
-    @app.websocket("/logs")  # type: ignore[misc]
+    @app.websocket("/logs")
     async def websocket_logs(websocket: WebSocket) -> None:
         """WebSocket endpoint for streaming logs"""
         await websocket.accept()
@@ -408,13 +409,18 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     reconstruction_logger.setLevel(logging.DEBUG)
 
     # Startup event to trigger background disassembly
-    @app.on_event("startup")  # type: ignore[misc]
+    @app.on_event("startup")
     async def startup_disassembly() -> None:
         """Run disassembly in background after server starts (if PDF is set)"""
         if hasattr(app.state, "startup_pdf_path") and app.state.startup_pdf_path:
             pdf_path = app.state.startup_pdf_path
             fixup_module = app.state.startup_fixup
-            print("🔄 Starting disassembly in background...")
+            if not pdf_path.exists():
+                server_logger = logging.getLogger("johnny5.server")
+                server_logger.error(f"Startup PDF not found: {pdf_path}")
+                print(f"❌ Startup PDF not found: {pdf_path}")
+                return
+            print(f"🔄 Starting disassembly in background for: {pdf_path}")
             asyncio.create_task(run_disassembly_background(pdf_path, fixup_module))
 
     # Store helper functions as app state for testing/external access
@@ -422,9 +428,9 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     app.state.set_current_pdf = set_current_pdf
     app.state.run_disassembly_background = run_disassembly_background
     app.state.cli_pdf_path = cli_pdf_path
-    # Startup PDF path (set by run_web before starting server)
-    app.state.startup_pdf_path = None
-    app.state.startup_fixup = None
+    # Set startup PDF path and fixup so startup event can trigger disassembly
+    app.state.startup_pdf_path = cli_pdf_path
+    app.state.startup_fixup = fixup
 
     return app
 
@@ -496,10 +502,15 @@ def get_app() -> FastAPI:
 class LazyApp:
     """ASGI application wrapper that lazily creates the FastAPI app"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._app: Optional[FastAPI] = None
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(
+        self,
+        scope: MutableMapping[str, Any],
+        receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+        send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    ) -> None:
         """ASGI interface - creates app on first request if needed"""
         if self._app is None:
             try:

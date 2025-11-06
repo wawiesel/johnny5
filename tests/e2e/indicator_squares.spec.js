@@ -6,7 +6,7 @@ test('top-row indicators remain square and column gap is zero', async ({ page })
   await page.waitForSelector('#pdf-grid'); // ensure app bootstrapped
 
   // Wait for all indicators to appear
-  const squareSelectors = ['#dark-mode-selector', '#rec-indicator'];
+  const squareSelectors = ['#color-mode-selector', '#rec-indicator'];
   for (const sel of squareSelectors) {
     await page.waitForSelector(sel, { timeout: 10000 });
   }

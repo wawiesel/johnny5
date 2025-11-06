@@ -170,6 +170,8 @@ cython_debug/
 # Johnny5 specific
 _cache/
 *.json
+!package.json
+!package-lock.json
 *.qmd
 *.html
 src/johnny5.egg-info/

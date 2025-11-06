@@ -5,11 +5,27 @@
 // - Connection lines from PDF elements to annotations
 const { test, expect } = require('@playwright/test');
 
+async function waitForDisassemblyComplete(page) {
+  // Wait for disassembly to complete by polling the status API
+  await page.waitForFunction(async () => {
+    try {
+      const response = await fetch('/api/disassembly-status');
+      const status = await response.json();
+      return status.status === 'completed';
+    } catch {
+      return false;
+    }
+  }, { timeout: 60000 }); // Allow up to 60s for disassembly
+}
+
 async function waitForAnnotationData(page) {
+  // First wait for disassembly to complete
+  await waitForDisassemblyComplete(page);
+  // Then wait for annotations to appear (allow time for client to process WebSocket notification)
   await page.waitForFunction(() => {
     const items = document.querySelectorAll('.ann-list-item');
     return items.length > 0;
-  }, { timeout: 15000 });
+  }, { timeout: 30000 }); // 30s buffer for annotation rendering after disassembly
 }
 
 test.describe('Disassemble (no fixup) workflow', () => {
@@ -105,46 +121,55 @@ test.describe('Disassemble (no fixup) workflow', () => {
 
   test('label toggles are displayed and functional', async ({ page }) => {
     await page.goto('http://127.0.0.1:5173/');
-    
-    // Wait for structure data to load
-    await page.waitForSelector('.ann-toggles-container', { timeout: 10000 });
-    await page.waitForTimeout(2000);
+    // Wait for annotation data and toggles to render
+    await waitForAnnotationData(page);
+    await page.waitForSelector('.ann-toggles-container', { timeout: 15000 });
     
     // Check for label checkboxes
     const checkboxes = page.locator('.ann-toggles-container input[type="checkbox"]');
     const checkboxCount = await checkboxes.count();
     
     if (checkboxCount > 0) {
-      // Verify checkboxes exist and have associated code/name elements
-      const firstCheckbox = checkboxes.first();
-      const checkboxId = await firstCheckbox.getAttribute('id');
+      // Find first checkbox that's not the none/all toggle (which has code/name hidden)
+      let firstCheckbox = null;
+      let checkboxId = null;
+      for (let i = 0; i < checkboxCount; i++) {
+        const checkbox = checkboxes.nth(i);
+        checkboxId = await checkbox.getAttribute('id');
+        if (checkboxId !== 'ann-none-all') {
+          firstCheckbox = checkbox;
+          break;
+        }
+      }
       
-      // Verify toggle row structure
-      const toggleRow = page.locator(`.ann-toggle-row input[type="checkbox"]#${checkboxId}`).locator('..').first();
-      await expect(toggleRow).toBeVisible();
-      
-      // Check for code and name elements in toggle row
-      const hasCode = await toggleRow.locator('.ann-code').count();
-      const hasName = await toggleRow.locator('.ann-toggle-row-name').count();
-      
-      // Should have either code or name (or both)
-      expect(hasCode + hasName).toBeGreaterThan(0);
-      
-      // Test toggle functionality - uncheck first checkbox (skip none/all checkbox)
-      if (checkboxId !== 'ann-none-all' && await firstCheckbox.isChecked()) {
-        await firstCheckbox.uncheck();
+      if (firstCheckbox && checkboxId) {
+        // Verify toggle row structure
+        const toggleRow = page.locator(`.ann-toggle-row input[type="checkbox"]#${checkboxId}`).locator('..').first();
+        await expect(toggleRow).toBeVisible();
         
-        // Verify that annotation overlays are filtered (if any exist)
-        const visibleOverlays = await page.evaluate(() => {
-          const overlays = document.querySelectorAll('.pdf-bbox-overlay');
-          return Array.from(overlays).filter(el => {
-            const style = window.getComputedStyle(el);
-            return style.display !== 'none';
-          }).length;
-        });
+        // Check for code and name elements in toggle row
+        const hasCode = await toggleRow.locator('.ann-code').count();
+        const hasName = await toggleRow.locator('.ann-toggle-row-name').count();
         
-        // At least some overlays should be hidden when a label is unchecked
-        // (if there are overlays and they match the unchecked label)
+        // Should have either code or name (or both)
+        expect(hasCode + hasName).toBeGreaterThan(0);
+        
+        // Test toggle functionality - uncheck first checkbox
+        if (await firstCheckbox.isChecked()) {
+          await firstCheckbox.uncheck();
+          
+          // Verify that annotation overlays are filtered (if any exist)
+          const visibleOverlays = await page.evaluate(() => {
+            const overlays = document.querySelectorAll('.pdf-bbox-overlay');
+            return Array.from(overlays).filter(el => {
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none';
+            }).length;
+          });
+          
+          // At least some overlays should be hidden when a label is unchecked
+          // (if there are overlays and they match the unchecked label)
+        }
       }
     }
   });

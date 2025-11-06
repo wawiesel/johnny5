@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -euo pipefail
+
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+VENV_BIN="$ROOT_DIR/venv/bin"
+
+echo "🧪 Python checks (pytest, ruff, mypy)"
+
+if [ ! -x "$VENV_BIN/python" ]; then
+  echo "❌ Python venv not found at $VENV_BIN"
+  echo "   Create it and install dev deps: python3 -m venv venv && venv/bin/pip install -U pip pytest ruff mypy"
+  exit 1
+fi
+
+for tool in pytest ruff mypy; do
+  if [ ! -x "$VENV_BIN/$tool" ]; then
+    echo "❌ Required tool missing in venv: $tool"
+    echo "   Install with: $VENV_BIN/pip install $tool"
+    exit 1
+  fi
+done
+
+echo "▶ Pytest"
+cd "$ROOT_DIR"
+"$VENV_BIN/python" -m pytest -q
+echo "✅ Pytest passed"
+
+echo "▶ Ruff"
+"$VENV_BIN/ruff" check .
+echo "✅ Ruff passed"
+
+echo "▶ mypy"
+"$VENV_BIN/mypy" src tests
+echo "✅ mypy passed"
+
+exit 0
+
+

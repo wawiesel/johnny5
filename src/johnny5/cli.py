@@ -17,18 +17,18 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="runpy")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s", stream=sys.stderr)
 
 
-@click.group()  # type: ignore[misc]
+@click.group()
 def main() -> None:
     """Johnny5 — Disassemble. Understand. Reassemble."""
     pass
 
 
-@main.command()  # type: ignore[misc]
-@click.argument("pdf", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
-@click.option("--layout-model", default="pubtables")  # type: ignore[misc]
-@click.option("--enable-ocr", is_flag=True)  # type: ignore[misc]
-@click.option("--json-dpi", default=300)  # type: ignore[misc]
-@click.option("--fixup", default="johnny5.fixups.example_fixup")  # type: ignore[misc]
+@main.command()
+@click.argument("pdf", type=click.Path(exists=True, path_type=Path))
+@click.option("--layout-model", default="pubtables")
+@click.option("--enable-ocr", is_flag=True)
+@click.option("--json-dpi", default=300)
+@click.option("--fixup", default="johnny5.fixups.example_fixup")
 def disassemble(pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, fixup: str) -> None:
     """Disassemble PDF -> Lossless JSON (with content-based caching).
 
@@ -48,20 +48,20 @@ def disassemble(pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, f
         sys.exit(1)
 
 
-@main.command()  # type: ignore[misc]
-@click.argument("pdf", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
-@click.option("--port", default=8000)  # type: ignore[misc]
-@click.option("--fixup", default="johnny5.fixups.example_fixup")  # type: ignore[misc]
+@main.command()
+@click.argument("pdf", type=click.Path(exists=True, path_type=Path))
+@click.option("--port", default=8000)
+@click.option("--fixup", default="johnny5.fixups.example_fixup")
 @click.option(
     "--color", type=click.Choice(["light", "dark", "debug"], case_sensitive=False), default="dark"
-)  # type: ignore[misc]
+)
 def web(pdf: Path, port: int, fixup: str, color: str) -> None:
     """Launch the web viewer"""
     run_web(pdf, port, fixup, color_scheme=color.lower())
 
 
-@main.command()  # type: ignore[misc]
-@click.argument("file", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
+@main.command()
+@click.argument("file", type=click.Path(exists=True, path_type=Path))
 def check(file: Path) -> None:
     """Check file for quality issues based on file extension (currently supports .qmd)"""
     try:
@@ -85,8 +85,8 @@ def check(file: Path) -> None:
         raise click.ClickException(f"Error checking file: {e}")
 
 
-@main.command()  # type: ignore[misc]
-@click.argument("file", type=click.Path(exists=True, path_type=Path))  # type: ignore[misc]
+@main.command()
+@click.argument("file", type=click.Path(exists=True, path_type=Path))
 def to_pdf(file: Path) -> None:
     """Render file to PDF based on file extension (currently supports .qmd using Quarto)"""
     try:

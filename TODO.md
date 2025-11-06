@@ -24,6 +24,17 @@ There are other things to do of course, this is not an exhaustive list.
   - mypy (add missing annotations, avoid untyped calls)
 - Ensure pre-commit passes locally and in CI without skipping hooks.
 
+## Enable density difference line
+
+- When a fixup is in play, a bright line appears on the x and y density that shows
+  after - original fixup density
+- the line = 0 if the fixup does nothing
+- a line of constant 0 goes through the middle of the density plot at p=0.5
+- a line of constant 1 means the original was p=0 and the after is p=1. This is plotted at p=1
+- a line of constant -1 means the original was p=1 and the after is p=0. This is plotted at p=0.
+- this requires a method to calculate the difference between two bounding box density curves
+  it should be analytic
+
 ## Enable caching system
 
 Implement the content-based caching system described in @SPEC.md:
