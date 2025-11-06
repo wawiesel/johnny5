@@ -716,15 +716,16 @@ class Johnny5Viewer {
     }
 
     startDisassemblyPolling() {
-        /**Poll disassembly status as fallback when WebSocket fails"""
+        /**
+         * Poll disassembly status as fallback when WebSocket fails
+         */
         if (this.disassemblyPollInterval) {
             return; // Already polling
         }
 
         // Poll every 2 seconds to check if disassembly completed
         this.disassemblyPollInterval = setInterval(() => {
-            (async () => {
-                const isComplete = await this.checkDisassemblyStatus();
+            this.checkDisassemblyStatus().then(isComplete => {
                 if (isComplete) {
                     // Disassembly completed, load annotations
                     clearInterval(this.disassemblyPollInterval);
@@ -735,7 +736,7 @@ class Johnny5Viewer {
                         this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
                     });
                 }
-            })().catch(error => {
+            }).catch(error => {
                 console.error('Error in disassembly polling:', error);
             });
         }, 2000); // Poll every 2 seconds
