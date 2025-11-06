@@ -463,8 +463,6 @@ def load_docling_pipeline(layout_model: str, enable_ocr: bool) -> DocumentConver
     logger.debug(f"Loading Docling pipeline: model={layout_model}, ocr={enable_ocr}")
 
     pdf_opt = PdfFormatOption()
-    # Use PyPdfiumDocumentBackend for better PDF compatibility
-    pdf_opt.backend = PyPdfiumDocumentBackend
     pipeline_options = PdfPipelineOptions()
     pipeline_options.do_ocr = enable_ocr
     pipeline_options.do_table_structure = True
