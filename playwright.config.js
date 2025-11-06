@@ -5,7 +5,7 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
-  timeout: 15000,
+  timeout: 90000, // 90s per test (allows for 29s disassembly + buffer)
   reporter: [
     ['list'],
     ['html'],

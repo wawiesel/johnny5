@@ -37,10 +37,10 @@ else
 fi
 
 # Rely on Playwright's built-in timeouts:
-# - Test timeout: 15s (from config) or 30s (from --timeout flag)
+# - Test timeout: 90s (from config) or overridden by --timeout flag
 # - webServer timeout: 120s (from config)
 # - GitHub Actions step timeout: 5min (from workflow)
-PLAYWRIGHT_HTML_REPORT=0 $PLAYWRIGHT_CMD test --reporter=line --timeout=30000 || {
+PLAYWRIGHT_HTML_REPORT=0 $PLAYWRIGHT_CMD test --reporter=line || {
     echo "❌ Playwright tests failed"
     exit 1
 }

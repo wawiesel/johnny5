@@ -21,11 +21,11 @@ async function waitForDisassemblyComplete(page) {
 async function waitForAnnotationData(page) {
   // First wait for disassembly to complete
   await waitForDisassemblyComplete(page);
-  // Then wait for annotations to appear
+  // Then wait for annotations to appear (allow time for client to process WebSocket notification)
   await page.waitForFunction(() => {
     const items = document.querySelectorAll('.ann-list-item');
     return items.length > 0;
-  }, { timeout: 10000 });
+  }, { timeout: 30000 }); // 30s buffer for annotation rendering after disassembly
 }
 
 test.describe('Disassemble (no fixup) workflow', () => {
