@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, cast
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 
 from .utils.margins import analyze_page_margins
 from .utils.density import calculate_density
@@ -121,8 +120,6 @@ def _run_docling_conversion(
 
     # Initialize converter with PdfFormatOption and configure pipeline options
     pdf_opt = PdfFormatOption()
-    # Use PyPdfiumDocumentBackend for better PDF compatibility (handles page dimensions correctly)
-    pdf_opt.backend = PyPdfiumDocumentBackend
     # Start from defaults and override fields explicitly
     pdf_options = PdfPipelineOptions()
     pdf_options.do_ocr = enable_ocr
