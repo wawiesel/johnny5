@@ -1,11 +1,10 @@
-// Verifies indicator layout on the live app (top-row squares, zero gaps)
+// Verifies indicator layout: top-row squares, zero gaps
 const { test, expect } = require('@playwright/test');
 
 test('top-row indicators remain square and column gap is zero', async ({ page }) => {
   await page.goto('http://127.0.0.1:5173/');
-  await page.waitForSelector('#pdf-grid'); // ensure app bootstrapped
-
-  // Wait for all indicators to appear
+  await page.waitForSelector('#pdf-grid');
+  
   const squareSelectors = ['#color-mode-selector', '#rec-indicator'];
   for (const sel of squareSelectors) {
     await page.waitForSelector(sel, { timeout: 10000 });
@@ -31,14 +30,12 @@ test('top-row indicators remain square and column gap is zero', async ({ page })
     expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
   }
 
-  // All indicators should share the same size (within 1px)
   const baseSize = Math.round(squareBoxes[0].height);
   for (const box of squareBoxes.slice(1)) {
     expect(Math.abs(Math.round(box.height) - baseSize)).toBeLessThanOrEqual(1);
     expect(Math.abs(Math.round(box.width) - baseSize)).toBeLessThanOrEqual(1);
   }
 
-  // The center progress block should align to the same topbar height
   const progressHeight = await page.evaluate(() => {
     const el = document.querySelector('#ann-progress');
     return el ? Math.round(el.getBoundingClientRect().height) : 0;
@@ -46,7 +43,6 @@ test('top-row indicators remain square and column gap is zero', async ({ page })
   expect(progressHeight).toBeGreaterThan(0);
   expect(Math.abs(progressHeight - baseSize)).toBeLessThanOrEqual(1);
 
-  // The layout grid must not introduce column gaps
   const columnGap = await page.evaluate(() => {
     const container = document.querySelector('.app-container');
     return container ? getComputedStyle(container).columnGap : null;

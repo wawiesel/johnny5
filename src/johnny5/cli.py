@@ -6,7 +6,7 @@ import tempfile
 import shutil
 import logging
 from pathlib import Path
-from .disassembler import run_disassemble
+from .disassembler import run_disassemble, check_docling_version
 from .server import run_web
 from .qmd_checker import check_qmd_file, format_check_results
 
@@ -25,11 +25,9 @@ def main() -> None:
 
 @main.command()
 @click.argument("pdf", type=click.Path(exists=True, path_type=Path))
-@click.option("--layout-model", default="pubtables")
 @click.option("--enable-ocr", is_flag=True)
-@click.option("--json-dpi", default=300)
 @click.option("--fixup", default="johnny5.fixups.example_fixup")
-def disassemble(pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, fixup: str) -> None:
+def disassemble(pdf: Path, enable_ocr: bool, fixup: str) -> None:
     """Disassemble PDF -> Lossless JSON (with content-based caching).
 
     Outputs cache key to stdout for chaining commands.
@@ -40,7 +38,8 @@ def disassemble(pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, f
         echo "Cache key: $CACHE_KEY"
     """
     try:
-        cache_key = run_disassemble(pdf, layout_model, enable_ocr, json_dpi, fixup)
+        check_docling_version()
+        cache_key = run_disassemble(pdf, enable_ocr, fixup)
         # Output cache key to stdout (per spec: for command chaining)
         print(cache_key)
     except Exception:

@@ -5,24 +5,14 @@ Add to the bottom. Do not reorder.
 Removed in the PR when they are complete.
 There are other things to do of course, this is not an exhaustive list.
 
-## Fix disassembly refresh
+## Enable font embeddings
 
-- Server: POST `/api/disassemble-refresh` with `{layout_model, enable_ocr, json_dpi}`; force re-run.
-- Server: per-run log file in cache dir; broadcast progress via SSE.
-- Client: refresh indicator states — needs-run (red), processing (yellow pulse), up-to-date (green), error (red pulse).
-- Client: persist Docling options; compare current vs loaded to set indicator.
-- Client: auto-refresh on load; on SSE completion reload annotations and set indicator green.
-- Types/lint: precise types (e.g., `DisassembleOptions`); satisfy mypy/ruff.
-- Tests: E2E waits for SSE completion; verify indicator transitions.
-
-## Fix playwright tests
-
-- Strengthen Playwright tests for z-order and interaction precedence.
-- Restore green CI runs without `--no-verify` by fixing linters:
-  - ESLint (e.g., undefined `ThemeToggle` in `src/johnny5/web/static/app.js`)
-  - Ruff / Ruff-format (Python style)
-  - mypy (add missing annotations, avoid untyped calls)
-- Ensure pre-commit passes locally and in CI without skipping hooks.
+- Create `wrap_with_jny5font()` helper to wrap text with `<jny5font>` tags (name, size, weight, slant, optional color).
+- Modify `_extract_element_data_from_cluster()` in disassembler: extract `font_info = cluster.get("font", {})` and set `element_data["content"] = wrap_with_jny5font(text, font_info)`.
+- Support nested tags for mixed styles within a single text block.
+- Ensure proper HTML escaping for JSON storage (valid UTF-8, JSON-safe).
+- Document attribute convention: `name` (font face), `size` (point size), `weight` (numeric/text), `slant` (italic/normal), optional `color` (RGB).
+- Add parsing support downstream (Python/Quarto) using BeautifulSoup or similar to extract font metadata from content strings.
 
 ## Enable density difference line
 

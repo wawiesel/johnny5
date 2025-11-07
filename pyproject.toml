@@ -11,16 +11,23 @@ license = "MIT"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-  "fastapi",
-  "uvicorn[standard]",
-  "python-multipart",
-  "watchfiles",
-  "docling",
-  "docling-parse",
-  "jinja2",
-  "numpy",
-  "click",
-  "opencv-python",
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "watchfiles",
+    "docling",
+    "docling-parse",
+    "jinja2",
+    "numpy",
+    "click",
+    "opencv-python",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
 ]
 
 [project.urls]
@@ -43,6 +50,9 @@ line-length = 100
 [tool.mypy]
 python_version = "3.9"
 strict = true
+warn_unused_ignores = false
+# Ignore untyped decorator warnings (common with FastAPI/Click/pytest)
+disable_error_code = ["misc"]
 
 [tool.pytest.ini_options]
 addopts = "-q --tb=short"

@@ -131,17 +131,13 @@ class Johnny5Viewer {
 
     getCurrentDoclingOptions() {
         return {
-            layoutModel: document.getElementById('docling-layout-select')?.value || 'pubtables',
-            enableOcr: !!document.getElementById('docling-ocr-cb')?.checked,
-            jsonDpi: parseInt(document.getElementById('docling-dpi-input')?.value, 10) || 144
+            enableOcr: !!document.getElementById('docling-ocr-cb')?.checked
         };
     }
 
     optionsMatch(options1, options2) {
         if (!options1 || !options2) return false;
-        return options1.layoutModel === options2.layoutModel &&
-               options1.enableOcr === options2.enableOcr &&
-               options1.jsonDpi === options2.jsonDpi;
+        return options1.enableOcr === options2.enableOcr;
     }
 
     checkAndUpdateIndicator() {
@@ -526,19 +522,6 @@ class Johnny5Viewer {
                 refreshGroup.appendChild(refreshButton);
                 subRow.appendChild(refreshGroup);
 
-                // Layout dropdown
-                const layoutGroup = document.createElement('div');
-                layoutGroup.className = 'pdf-control-group';
-                const layoutLabel = document.createElement('label');
-                layoutLabel.textContent = 'Layout';
-                const layoutSelect = document.createElement('select');
-                layoutSelect.id = 'docling-layout-select';
-                // Populate dynamically from backend
-                this.populateLayoutModels(layoutSelect);
-                layoutGroup.appendChild(layoutLabel);
-                layoutGroup.appendChild(layoutSelect);
-                subRow.appendChild(layoutGroup);
-
                 // OCR checkbox
                 const ocrGroup = document.createElement('div');
                 ocrGroup.className = 'pdf-control-group';
@@ -551,23 +534,6 @@ class Johnny5Viewer {
                 ocrGroup.appendChild(ocrLabel);
                 ocrGroup.appendChild(ocrCheckbox);
                 subRow.appendChild(ocrGroup);
-
-                // DPI number
-                const dpiGroup = document.createElement('div');
-                dpiGroup.className = 'pdf-control-group';
-                const dpiLabel = document.createElement('label');
-                dpiLabel.textContent = 'DPI';
-                const dpiInput = document.createElement('input');
-                dpiInput.type = 'number';
-                dpiInput.id = 'docling-dpi-input';
-                dpiInput.min = '72';
-                dpiInput.max = '600';
-                dpiInput.step = '1';
-                dpiInput.style.width = '70px';
-                dpiInput.value = String(window.J5.settings.docling?.jsonDpi ?? 144);
-                dpiGroup.appendChild(dpiLabel);
-                dpiGroup.appendChild(dpiInput);
-                subRow.appendChild(dpiGroup);
 
                 // Set up change listeners to check cache and load if available
                 const onOptionChange = async () => {
@@ -592,7 +558,7 @@ class Johnny5Viewer {
                         if (result.success) {
                             // Cache loaded successfully - update state and reload page data
                             this.addPdfLogEntry(
-                                `Loaded ${result.options.layout_model} (${result.pages} pages) from cache`,
+                                `Loaded cache (${result.pages} pages, OCR: ${result.options.enable_ocr ? 'on' : 'off'})`,
                                 'info'
                             );
                             this.loadedDoclingOptions = options;
@@ -610,9 +576,7 @@ class Johnny5Viewer {
                     }
                 };
 
-                layoutSelect.addEventListener('change', onOptionChange);
                 ocrCheckbox.addEventListener('change', onOptionChange);
-                dpiInput.addEventListener('change', onOptionChange);
                 refreshButton.addEventListener('click', async () => {
                     if (!this.pdfDoc) {
                         this.addPdfLogEntry('No PDF loaded', 'warning');
@@ -813,7 +777,7 @@ class Johnny5Viewer {
                     if (data.options) {
                         this.loadedDoclingOptions = data.options;
                         this.addPdfLogEntry(
-                            `Loaded: ${data.options.layoutModel}, OCR: ${data.options.enableOcr}, DPI: ${data.options.jsonDpi}`,
+                            `Disassembly complete (OCR: ${data.options.enableOcr ? 'on' : 'off'})`,
                             'info'
                         );
                     } else {

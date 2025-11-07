@@ -3,7 +3,6 @@
  */
 
 async function waitForDisassemblyComplete(page) {
-  // Wait for disassembly to complete by polling the status API
   await page.waitForFunction(async () => {
     try {
       const response = await fetch('/api/disassembly-status');
@@ -12,21 +11,48 @@ async function waitForDisassemblyComplete(page) {
     } catch {
       return false;
     }
-  }, { timeout: 60000 }); // Allow up to 60s for disassembly
+  }, { timeout: 30000 });
 }
 
 async function waitForAnnotationData(page) {
-  // First wait for disassembly to complete
   await waitForDisassemblyComplete(page);
-  // Then wait for annotations to appear (allow time for client to process SSE notification)
   await page.waitForFunction(() => {
     const items = document.querySelectorAll('.ann-list-item');
     return items.length > 0;
-  }, { timeout: 30000 }); // 30s buffer for annotation rendering after disassembly
+  }, { timeout: 10000 });
+}
+
+async function getRefreshIndicatorState(page) {
+  return await page.evaluate(() => {
+    const btn = document.querySelector('.disassemble-btn');
+    if (!btn) return null;
+    const states = ['up-to-date', 'needs-run', 'processing', 'error'];
+    return states.find(state => btn.classList.contains(state)) || null;
+  });
+}
+
+async function waitForIndicatorState(page, expectedState, timeout = 10000) {
+  await page.waitForFunction(
+    (state) => {
+      const btn = document.querySelector('.disassemble-btn');
+      return btn && btn.classList.contains(state);
+    },
+    expectedState,
+    { timeout }
+  );
+}
+
+async function waitForPageReady(page) {
+  await page.waitForSelector('.disassemble-btn', { timeout: 10000 });
+  await waitForDisassemblyComplete(page);
+  await waitForIndicatorState(page, 'up-to-date', 10000);
 }
 
 module.exports = {
   waitForDisassemblyComplete,
   waitForAnnotationData,
+  getRefreshIndicatorState,
+  waitForIndicatorState,
+  waitForPageReady,
 };
 

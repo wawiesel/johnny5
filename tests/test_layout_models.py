@@ -54,7 +54,9 @@ def test_layout_models_have_expected_entries() -> None:
         expected = ["doclaynet", "pubtables", "digitaldocmodel", "tableformer"]
 
     for expected_model in expected:
-        assert expected_model in model_names, f"Expected model '{expected_model}' not found for Docling {docling_version}"
+        assert (
+            expected_model in model_names
+        ), f"Expected model '{expected_model}' not found for Docling {docling_version}"
 
 
 def test_verify_layout_model_valid() -> None:
@@ -100,12 +102,10 @@ def test_each_layout_model_processes_pdf() -> None:
         print(f"\nTesting layout model: {model_name}")
 
         try:
-            # Run disassembly with this model
+            # Run disassembly (Docling 2.0+ always uses docling_layout_heron)
             cache_key = run_disassemble(
                 pdf=pdf_path,
-                layout_model=model_name,
                 enable_ocr=False,
-                json_dpi=72,  # Use lower DPI for faster testing
                 fixup="johnny5.fixups.example_fixup",
                 force_refresh=False,  # Use cache if available
             )

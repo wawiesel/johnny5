@@ -2,42 +2,33 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, MutableMapping, Optional, Union, cast
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    MutableMapping,
+    Optional,
+    Union,
+    cast,
+)
 
 from fastapi import FastAPI, Request, Response, UploadFile, File
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ConfigDict
+
+from .disassembler import check_docling_version
 
 JSONDict = Dict[str, Any]
 
 
-class DisassembleOptions(BaseModel):  # type: ignore[misc]
-    """Request body for disassemble-refresh endpoint"""
+class DisassembleOptions(BaseModel):
+    """Request body for disassemble-refresh endpoint (Docling 2.0+)"""
 
-    layout_model: str = Field(default="pubtables", alias="layoutModel")
+    model_config = ConfigDict(populate_by_name=True)  # Allow both snake_case and camelCase
+
     enable_ocr: bool = Field(default=False, alias="enableOcr")
-    json_dpi: int = Field(default=144, alias="jsonDpi")
-
-    @field_validator("layout_model")  # type: ignore[misc]
-    @classmethod
-    def validate_layout_model(cls, v: str) -> str:
-        from .disassembler import verify_layout_model
-
-        if not verify_layout_model(v):
-            valid_models = ["doclaynet", "pubtables", "digitaldocmodel", "tableformer"]
-            raise ValueError(
-                f"Invalid layout model '{v}'. Valid models are: {', '.join(valid_models)}"
-            )
-        return v
-
-    @field_validator("json_dpi")  # type: ignore[misc]
-    @classmethod
-    def validate_dpi(cls, v: int) -> int:
-        if v < 72 or v > 600:
-            raise ValueError(f"DPI must be between 72 and 600, got {v}")
-        return v
-
-    class Config:
-        populate_by_name = True  # Allow both snake_case and camelCase
 
 
 def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -> FastAPI:
@@ -61,7 +52,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     import logging
     import asyncio
     import shutil
-    from .disassembler import run_disassemble, get_available_layout_models
+    from .disassembler import run_disassemble, get_available_layout_models, check_docling_version
     from .utils.cache import (
         get_cache_path,
         get_cache_dir,
@@ -142,9 +133,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             cache_key = await asyncio.to_thread(
                 run_disassemble,
                 pdf=pdf_path,
-                layout_model=options.layout_model,
                 enable_ocr=options.enable_ocr,
-                json_dpi=options.json_dpi,
                 fixup=fixup_module,
                 force_refresh=True,  # Always force refresh when user explicitly requests it
             )
@@ -166,9 +155,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
                 "message": disassembly_status["message"],
                 "log_file": str(log_file),
                 "options": {
-                    "layoutModel": options.layout_model,
                     "enableOcr": options.enable_ocr,
-                    "jsonDpi": options.json_dpi,
                 },
             }
             await sse_queue.put(notification)
@@ -235,13 +222,13 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
         """Get current disassembly status for client polling"""
         return disassembly_status.copy()
 
-    @app.get("/api/layout-models")  # type: ignore[misc]
+    @app.get("/api/layout-models")
     async def get_layout_models() -> JSONDict:
         """Get available Docling layout models with descriptions"""
         models = get_available_layout_models()
         return {"models": models}
 
-    @app.post("/api/check-cache")  # type: ignore[misc]
+    @app.post("/api/check-cache")
     async def check_cache(options: DisassembleOptions) -> JSONDict:
         """Check if cache exists for given options and return cache key"""
         server_logger = logging.getLogger("johnny5.server")
@@ -249,9 +236,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             # Generate cache key for these options
             cache_key, _ = generate_disassemble_cache_key(
                 current_pdf_path,
-                options.layout_model,
                 options.enable_ocr,
-                options.json_dpi,
             )
 
             # Check if cache file exists
@@ -261,16 +246,14 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
                 "cache_exists": cached_file is not None,
                 "cache_key": cache_key if cached_file else None,
                 "options": {
-                    "layout_model": options.layout_model,
                     "enable_ocr": options.enable_ocr,
-                    "json_dpi": options.json_dpi,
                 },
             }
         except Exception as e:
             server_logger.error(f"Error checking cache: {e}")
             return {"cache_exists": False, "cache_key": None, "error": str(e)}
 
-    @app.post("/api/load-cache")  # type: ignore[misc]
+    @app.post("/api/load-cache")
     async def load_cache(options: DisassembleOptions) -> JSONDict:
         """Load structure data from cache for given options"""
         server_logger = logging.getLogger("johnny5.server")
@@ -278,9 +261,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             # Generate cache key for these options
             cache_key, _ = generate_disassemble_cache_key(
                 current_pdf_path,
-                options.layout_model,
                 options.enable_ocr,
-                options.json_dpi,
             )
 
             # Get cache path
@@ -296,25 +277,21 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             # Load the structure data
             load_structure_data(json_path)
 
-            server_logger.info(
-                f"Loaded cache {cache_key} for layout={options.layout_model}, ocr={options.enable_ocr}, dpi={options.json_dpi}"
-            )
+            server_logger.info(f"Loaded cache {cache_key} for ocr={options.enable_ocr}")
 
             return {
                 "success": True,
                 "cache_key": cache_key,
                 "pages": len(structure_data.get("pages", [])),
                 "options": {
-                    "layout_model": options.layout_model,
                     "enable_ocr": options.enable_ocr,
-                    "json_dpi": options.json_dpi,
                 },
             }
         except Exception as e:
             server_logger.error(f"Error loading cache: {e}")
             return {"success": False, "error": str(e)}
 
-    @app.get("/api/structure/{page}")  # type: ignore[misc]
+    @app.get("/api/structure/{page}")
     async def get_structure(page: int) -> JSONDict:
         """Get structure data for a specific page"""
         server_logger = logging.getLogger("johnny5.server")
@@ -459,7 +436,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_logger.error(f"Upload failed: {error_msg}", exc_info=True)
             return {"success": False, "error": error_msg}
 
-    @app.post("/api/disassemble-refresh")  # type: ignore[misc]
+    @app.post("/api/disassemble-refresh")
     async def disassemble_refresh(options: DisassembleOptions) -> JSONDict:
         """Re-run disassembly on the current server PDF in background"""
         try:
@@ -468,8 +445,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
                 return {"success": False, "error": f"PDF file not found: {target_pdf}"}
 
             disassembly_logger.info(
-                f"Starting background refresh for PDF: {target_pdf} "
-                f"(layout={options.layout_model}, ocr={options.enable_ocr}, dpi={options.json_dpi})"
+                f"Starting background refresh for PDF: {target_pdf} (ocr={options.enable_ocr})"
             )
 
             # Trigger background disassembly (non-blocking)
@@ -484,7 +460,7 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
             disassembly_logger.error(f"Disassembly refresh failed: {error_msg}", exc_info=True)
             return {"success": False, "error": error_msg}
 
-    @app.get("/api/events")  # type: ignore[misc]
+    @app.get("/api/events")
     async def sse_events() -> StreamingResponse:
         """Server-Sent Events endpoint for streaming logs and updates"""
 
@@ -560,10 +536,19 @@ def _create_app(pdf: Union[str, Path], fixup: str, color_scheme: str = "dark") -
     reconstruction_logger.setLevel(logging.DEBUG)
 
     # Startup event to capture event loop and trigger disassembly
-    @app.on_event("startup")  # type: ignore[misc]
+    @app.on_event("startup")
     async def startup_init() -> None:
         """Initialize server - capture event loop for SSE logging and trigger disassembly"""
         nonlocal main_loop
+
+        # Check Docling version requirement
+        try:
+            check_docling_version()
+        except RuntimeError as e:
+            server_logger = logging.getLogger("johnny5.server")
+            server_logger.error(str(e))
+            print(f"❌ {e}")
+            raise
 
         # Capture the main event loop for thread-safe async operations
         main_loop = asyncio.get_running_loop()
@@ -598,6 +583,15 @@ def run_web(pdf: Union[str, Path], port: int, fixup: str, color_scheme: str = "d
     """Launch the FastAPI web viewer for Johnny5"""
     import uvicorn
     import logging
+
+    # Check Docling version requirement before starting server
+    try:
+        check_docling_version()
+    except RuntimeError as e:
+        logger = logging.getLogger("johnny5.server")
+        logger.error(str(e))
+        print(f"❌ {e}")
+        return
 
     # Create the app
     app = _create_app(pdf, fixup, color_scheme=color_scheme)

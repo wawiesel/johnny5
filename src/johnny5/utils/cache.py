@@ -205,18 +205,14 @@ def load_from_cache(cache_key: str, stage: str, extension: str = "json") -> Any:
         return cache_file.read_text(encoding="utf-8")
 
 
-def generate_disassemble_cache_key(
-    pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int
-) -> tuple[str, str]:
+def generate_disassemble_cache_key(pdf: Path, enable_ocr: bool) -> tuple[str, str]:
     """Generate cache key for disassemble stage.
 
     Cache key = SHA-256(PDF checksum + Docling options)
 
     Args:
         pdf: Path to PDF file
-        layout_model: Docling layout model
         enable_ocr: OCR enabled flag
-        json_dpi: DPI setting
 
     Returns:
         Tuple of (16-character cache key, 64-character PDF checksum)
@@ -224,7 +220,8 @@ def generate_disassemble_cache_key(
     # Calculate PDF file checksum
     pdf_checksum = calculate_file_checksum(pdf)
 
-    docling_options = {"layout_model": layout_model, "enable_ocr": enable_ocr, "json_dpi": json_dpi}
+    # Docling 2.0: layout model is always docling_layout_heron, so we don't include it in cache key
+    docling_options = {"enable_ocr": enable_ocr}
 
     # Hash checksum + options instead of file bytes + options
     cache_key = generate_cache_key(pdf_checksum, docling_options)
