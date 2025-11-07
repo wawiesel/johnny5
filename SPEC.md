@@ -147,9 +147,7 @@ from johnny5.disassembler import run_disassemble
 
 cache_key = run_disassemble(
     pdf=Path("document.pdf"),
-    layout_model="pubtables",          # Docling layout model
     enable_ocr=False,                  # Enable OCR processing
-    json_dpi=144,                      # DPI for JSON output
     fixup="johnny5.fixups.my_fixup",  # Module path for fixup
     force_refresh=False                # Reprocess even if cached
 )
@@ -164,11 +162,20 @@ cache_key = run_disassemble(
 
 **Parameters:**
 - `pdf` (Path): Path to the PDF file to process
-- `layout_model` (str): Docling layout model (e.g., "pubtables", "doclaynet", "digitaldocmodel", "tableformer")
 - `enable_ocr` (bool): Whether to enable OCR processing for text extraction
-- `json_dpi` (int): DPI setting for JSON output generation (72-600)
 - `fixup` (str): Module path for fixup processing (hot-reloadable)
 - `force_refresh` (bool): If True, reprocess even if cache exists (default: False)
+
+**Caching Mechanism:**
+The cache key is generated from:
+- PDF file content (SHA-256 checksum)
+- Docling options (OCR enabled/disabled)
+- Fixup module path (if provided)
+
+Cache files are stored at `~/.jny5/cache/structure/{cache_key}.json` (or `$JNY5_HOME/cache/structure/{cache_key}.json` if `JNY5_HOME` is set). The cache key is a 16-character hexadecimal string derived from a hash of the input parameters. This ensures that:
+- Same PDF + same options = same cache key (cache hit)
+- Different PDF or different options = different cache key (cache miss)
+- Force refresh bypasses cache lookup and regenerates the cache entry
 
 **Returns:**
 - `str`: 16-character cache key identifying the cached structure JSON at `~/.jny5/cache/structure/{cache_key}.json`

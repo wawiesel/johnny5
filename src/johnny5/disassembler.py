@@ -504,8 +504,14 @@ def get_available_layout_models() -> List[Dict[str, str]]:
     """
     Get list of available Docling layout models with descriptions.
 
-    Models are discovered from a version-specific cache file in ~/.jny5/models/{version}.json.
-    If the cache doesn't exist for the current Docling version, falls back to known defaults.
+    Models are discovered from a version-specific cache file in ~/.jny5/models/{version}.json
+    (or $JNY5_HOME/models/{version}.json if JNY5_HOME is set).
+
+    The cache file is automatically created on first run with known defaults for the current
+    Docling version. Users can manually edit the cache file to customize available models.
+
+    Future enhancement: Automatic discovery by querying Docling's API or documentation
+    when a new version is detected, then caching the results.
 
     Returns:
         List of dicts with 'name', 'description', and optional 'docs_url' keys

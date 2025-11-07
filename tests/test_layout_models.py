@@ -36,8 +36,16 @@ def test_get_available_layout_models() -> None:
 
 
 def test_layout_models_have_expected_entries() -> None:
-    """Test that expected models are in the list based on Docling version"""
-    from johnny5.disassembler import get_docling_version
+    """Test that expected models are in the list based on Docling version
+
+    This test verifies that the layout models returned match the expected set
+    for the current Docling version. As new Docling versions are released with
+    different model sets, this test should be updated to reflect those changes.
+    """
+    from johnny5.disassembler import get_docling_version, check_docling_version
+
+    # Ensure we're on a supported Docling version
+    check_docling_version()
 
     docling_version = get_docling_version()
     major_version = int(docling_version.split(".")[0])
@@ -46,17 +54,18 @@ def test_layout_models_have_expected_entries() -> None:
     model_names = [m["name"] for m in models]
 
     # Expected models vary by Docling version
+    # Update this test as new Docling versions introduce different model sets
     if major_version >= 2:
         # Docling 2.x uses unified model
         expected = ["docling_layout_heron"]
     else:
-        # Docling 1.x models
+        # Docling 1.x models (not supported, but test for completeness)
         expected = ["doclaynet", "pubtables", "digitaldocmodel", "tableformer"]
 
     for expected_model in expected:
         assert (
             expected_model in model_names
-        ), f"Expected model '{expected_model}' not found for Docling {docling_version}"
+        ), f"Expected model '{expected_model}' not found for Docling {docling_version}. Update test if this version introduces new models."
 
 
 def test_verify_layout_model_valid() -> None:
