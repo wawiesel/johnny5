@@ -193,28 +193,30 @@ class Johnny5Viewer {
         }
     }
 
+    // Common method to trigger disassembly refresh
+    async _triggerRefresh(options, errorContext = 'Refresh') {
+        this.updateRefreshIndicator('processing');
+
+        const response = await fetch('/api/disassemble-refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(options)
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || `${errorContext} failed`);
+        }
+
+        // Success - SSE will handle completion and update indicator to green
+        return result;
+    }
+
     async triggerAutoRefresh() {
         // Trigger automatic disassembly refresh on page load
         try {
-            // Set processing indicator
-            this.updateRefreshIndicator('processing');
-
-            // Get current options (defaults from localStorage or fallbacks)
             const options = this.getCurrentDoclingOptions();
-
-            // Trigger refresh
-            const response = await fetch('/api/disassemble-refresh', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(options)
-            });
-
-            const result = await response.json();
-            if (!result.success) {
-                throw new Error(result.error || 'Auto-refresh failed');
-            }
-
-            // Success - SSE will handle completion and update indicator to green
+            await this._triggerRefresh(options, 'Auto-refresh');
         } catch (error) {
             this.addPdfLogEntry(`Auto-refresh failed: ${error.message}`, 'error');
             this.updateRefreshIndicator('error');
@@ -612,42 +614,27 @@ class Johnny5Viewer {
                 ocrCheckbox.addEventListener('change', onOptionChange);
                 dpiInput.addEventListener('change', onOptionChange);
                 refreshButton.addEventListener('click', async () => {
-                    if (this.pdfDoc) {
-                        try {
-                            refreshButton.disabled = true;
-
-                            // Set processing indicator
-                            this.updateRefreshIndicator('processing');
-
-                            // Persist settings and update loaded options
-                            window.J5.settings.docling = {
-                                layoutModel: layoutSelect.value,
-                                enableOcr: !!ocrCheckbox.checked,
-                                jsonDpi: parseInt(dpiInput.value, 10) || 144,
-                            };
-                            try { localStorage.setItem('jny5-docling', JSON.stringify(window.J5.settings.docling)); } catch {}
-
-                            const response = await fetch('/api/disassemble-refresh', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(window.J5.settings.docling)
-                            });
-
-                            const result = await response.json();
-                            if (result.success) {
-                                // Refresh started - SSE will trigger loadAllPageData() when disassembly completes
-                                // Indicator will be updated to 'up-to-date' when SSE confirms completion
-                            } else {
-                                throw new Error(result.error || 'Disassembly refresh failed');
-                            }
-                        } catch (error) {
-                            this.addPdfLogEntry(`Failed to start refresh: ${error.message}`, 'error');
-                            this.updateRefreshIndicator('error');
-                        } finally {
-                            refreshButton.disabled = false;
-                        }
-                    } else {
+                    if (!this.pdfDoc) {
                         this.addPdfLogEntry('No PDF loaded', 'warning');
+                        return;
+                    }
+
+                    try {
+                        refreshButton.disabled = true;
+
+                        // Get current options and persist
+                        const options = this.getCurrentDoclingOptions();
+                        window.J5.settings.docling = options;
+                        try { localStorage.setItem('jny5-docling', JSON.stringify(options)); } catch {}
+
+                        await this._triggerRefresh(options, 'Disassembly refresh');
+                        // SSE will trigger loadAllPageData() when disassembly completes
+                        // Indicator will be updated to 'up-to-date' when SSE confirms completion
+                    } catch (error) {
+                        this.addPdfLogEntry(`Failed to start refresh: ${error.message}`, 'error');
+                        this.updateRefreshIndicator('error');
+                    } finally {
+                        refreshButton.disabled = false;
                     }
                 });
                 
