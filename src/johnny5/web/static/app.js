@@ -1,5 +1,5 @@
 // Johnny5 Web Viewer JavaScript
-/* global FormData, localStorage, ThemeToggle */
+/* global EventSource, FormData, localStorage, ThemeToggle */
 
 // (helper removed)
 
@@ -862,7 +862,7 @@ class Johnny5Viewer {
             }
         };
 
-        this.eventSource.onerror = (error) => {
+        this.eventSource.onerror = () => {
             this.addPdfLogEntry('Event stream error - will auto-reconnect', 'warning');
             // EventSource automatically reconnects
         };
