@@ -49,24 +49,42 @@
     --pdf-grid-line-y: rgba(255, 255, 255, 0.05);
     --pdf-origin-marker: rgba(0, 180, 0, 0.9);
     --placeholder-bg: var(--surface-2);
-    /* Annotation type colors */
-    --annotation-text: rgba(0, 206, 209, 0.7);
-    --annotation-title: rgba(255, 140, 0, 0.7);
-    --annotation-heading: rgba(255, 165, 0, 0.7);
-    --annotation-section_header: rgba(250, 128, 114, 0.7);
-    --annotation-table: rgba(255, 99, 71, 0.7);
-    --annotation-figure: rgba(255, 0, 255, 0.7);
-    --annotation-list_item: rgba(50, 205, 50, 0.7);
-    --annotation-code: rgba(255, 215, 0, 0.7);
-    --annotation-page_header: rgba(138, 43, 226, 0.7);
-    --annotation-page_footer: rgba(147, 112, 219, 0.7);
-    --annotation-caption: rgba(0, 191, 255, 0.7);
-    --annotation-key_value_region: rgba(107, 142, 35, 0.7);
-    --annotation-footnote: rgba(255, 20, 147, 0.7);
-    --annotation-equation: rgba(0, 100, 0, 0.7);
-    --annotation-formula: rgba(0, 100, 0, 0.7);
-    --annotation-picture: rgba(255, 69, 0, 0.7);
-    --annotation-default: rgba(211, 211, 211, 0.6);
+    /* Annotation type colors - unified accessible palette (same across all themes) */
+    --annotation-text: rgba(102, 153, 204, 0.7);           /* Soft blue */
+    --annotation-title: rgba(255, 153, 51, 0.7);            /* Soft orange */
+    --annotation-heading: rgba(255, 102, 102, 0.7);         /* Soft red */
+    --annotation-section_header: rgba(204, 51, 51, 0.7);    /* Muted red */
+    --annotation-table: rgba(153, 51, 51, 0.7);             /* Dark red */
+    --annotation-figure: rgba(153, 102, 204, 0.7);         /* Soft purple */
+    --annotation-picture: rgba(255, 153, 204, 0.7);        /* Soft pink */
+    --annotation-list_item: rgba(102, 204, 102, 0.7);       /* Soft green */
+    --annotation-code: rgba(51, 153, 255, 0.7);            /* Bright blue */
+    --annotation-page_header: rgba(102, 51, 153, 0.7);      /* Muted purple */
+    --annotation-page_footer: rgba(153, 51, 204, 0.7);     /* Medium purple */
+    --annotation-caption: rgba(51, 204, 204, 0.7);         /* Soft cyan */
+    --annotation-key_value_region: rgba(153, 153, 51, 0.7); /* Olive */
+    --annotation-footnote: rgba(204, 102, 153, 0.7);       /* Soft magenta */
+    --annotation-equation: rgba(51, 153, 51, 0.7);          /* Medium green */
+    --annotation-formula: rgba(153, 204, 51, 0.7);         /* Lime green */
+    --annotation-default: rgba(180, 180, 180, 0.6);        /* Light gray */
+    /* Annotation text colors (white for dark backgrounds, black for light) */
+    --annotation-text-text: #ffffff;
+    --annotation-title-text: #000000;
+    --annotation-heading-text: #000000;
+    --annotation-section_header-text: #ffffff;
+    --annotation-table-text: #ffffff;
+    --annotation-figure-text: #ffffff;
+    --annotation-picture-text: #000000;
+    --annotation-list_item-text: #000000;
+    --annotation-code-text: #000000;
+    --annotation-page_header-text: #ffffff;
+    --annotation-page_footer-text: #ffffff;
+    --annotation-caption-text: #000000;
+    --annotation-key_value_region-text: #000000;
+    --annotation-footnote-text: #000000;
+    --annotation-equation-text: #ffffff;
+    --annotation-formula-text: #000000;
+    --annotation-default-text: #000000;
     /* Disassemble header color */
     --disassemble-tab-color: var(--text-secondary);
     /* Opacity and color variables */
