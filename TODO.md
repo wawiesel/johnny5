@@ -25,19 +25,6 @@ There are other things to do of course, this is not an exhaustive list.
 - this requires a method to calculate the difference between two bounding box density curves
   it should be analytic
 
-## Enable caching system
-
-Implement the content-based caching system described in @SPEC.md:
-- Cache key generation from input file hash and fixup module
-- JNY5_HOME environment variable support for cache location
-- CLI commands to display cache keys
-- Cache invalidation and cleanup mechanisms
-- Foundation for hot reloading functionality
-
-## Enable image panels for i and d
-
-i is image based on checksum before fixup, d is after
-
 ## Enable disassemble with fixup
 
 Enable the fixup with hot reloading, i.e. if the fixup.py changes on disk, it updates the annotations on-the-fly without restart. 
@@ -49,3 +36,13 @@ Might need to be able to run server in headless mode?
 Implement the caching system described in @SPEC.md with cache key generation, 
 JNY5_HOME environment variable support, and CLI commands that output cache keys.
 This enables the full pipeline workflow and sets up the foundation for hot reloading.
+
+## Fix fast scrolling responsiveness
+
+Replace the current cancellation-based render system with a centralized render queue that can be reordered:
+- Create a centralized data structure to queue pages for rendering
+- When scrolling, reorder the queue to prioritize visible pages
+- Remove the complex cancellation logic (pendingRenders Map with cancellation tokens)
+- Simplify placeholder creation - no complex calculations, just visible range + small buffer
+- Ensure pages render when scrolling stops, without requiring user interaction
+- Keep resource-based scaling (getResourceUsage/getRenderBufferSize) but simplify the queue management
