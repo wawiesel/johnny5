@@ -59,14 +59,20 @@
     /* Annotation type colors - high contrast for debug */
     --annotation-text: rgba(0, 255, 255, 0.9);
     --annotation-title: rgba(255, 255, 0, 0.9);
+    --annotation-heading: rgba(255, 200, 0, 0.9);
     --annotation-section_header: rgba(255, 0, 255, 0.9);
     --annotation-table: rgba(255, 0, 0, 0.9);
     --annotation-figure: rgba(255, 128, 0, 0.9);
     --annotation-list_item: rgba(0, 255, 0, 0.9);
     --annotation-code: rgba(255, 255, 255, 0.9);
+    --annotation-page_header: rgba(200, 0, 255, 0.9);
     --annotation-page_footer: rgba(128, 0, 255, 0.9);
     --annotation-caption: rgba(0, 128, 255, 0.9);
     --annotation-key_value_region: rgba(128, 255, 128, 0.9);
+    --annotation-footnote: rgba(255, 0, 128, 0.9);
+    --annotation-equation: rgba(0, 255, 128, 0.9);
+    --annotation-formula: rgba(0, 255, 128, 0.9);
+    --annotation-picture: rgba(255, 100, 0, 0.9);
     --annotation-default: rgba(255, 255, 255, 0.8);
     /* Disassemble header color */
     --disassemble-tab-color: var(--text-primary);

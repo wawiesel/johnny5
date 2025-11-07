@@ -3499,15 +3499,21 @@ class Johnny5Viewer {
         // Get 2-letter code for annotation type
         const codes = {
             'page_footer': 'PF',
+            'page_header': 'PH',
             'section_header': 'SH',
             'text': 'TX',
             'title': 'TT',
+            'heading': 'HD',
             'table': 'TB',
             'figure': 'FG',
             'list_item': 'LI',
             'code': 'CO',
             'caption': 'CP',
             'key_value_region': 'KV',
+            'footnote': 'FN',
+            'equation': 'EQ',
+            'formula': 'FM',
+            'picture': 'PI',
         };
         return codes[type] || type.substring(0, 2).toUpperCase();
     }
