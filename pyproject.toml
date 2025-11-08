@@ -28,6 +28,7 @@ dev = [
     "ruff",
     "mypy",
     "pytest",
+    "httpx",
 ]
 
 [project.urls]
