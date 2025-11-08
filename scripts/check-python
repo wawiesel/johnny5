@@ -13,10 +13,16 @@ if [ ! -x "$VENV_BIN/python" ]; then
   exit 1
 fi
 
+# Ensure dev extras (pytest, ruff, mypy, httpx, etc.) are available
+if ! "$VENV_BIN/python" -c "import httpx" >/dev/null 2>&1; then
+  echo "⬇️  Installing python dev dependencies (editable w/ dev extras)"
+  "$VENV_BIN/pip" install -e ".[dev]"
+fi
+
 for tool in pytest ruff mypy; do
   if [ ! -x "$VENV_BIN/$tool" ]; then
     echo "❌ Required tool missing in venv: $tool"
-    echo "   Install with: $VENV_BIN/pip install $tool"
+    echo "   Install with: $VENV_BIN/pip install -e '.[dev]'"
     exit 1
   fi
 done
