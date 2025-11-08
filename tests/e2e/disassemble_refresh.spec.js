@@ -35,7 +35,7 @@ test.describe('Disassembly refresh flow', () => {
     await waitForPageReady(page);
     
     await page.locator('.disassemble-btn').click();
-    await waitForIndicatorState(page, 'processing', 5000);
+    await waitForIndicatorState(page, 'processing', 15000);
     await waitForDisassemblyComplete(page);
     // Wait longer for parallel runs where SSE messages might be delayed
     await waitForIndicatorState(page, 'up-to-date', 15000);
