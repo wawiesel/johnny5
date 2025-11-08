@@ -1284,7 +1284,7 @@ class Johnny5Viewer {
             // Get PDF info from server to display filename
             let pdfName = 'PDF';
             try {
-                const info = await this._apiCall('/api/pdf-info');
+                const info = await this._apiCall(this._buildApiUrl('/api/pdf-info'));
                 const displayName = (info.display_name || '').trim();
                 if (displayName) {
                     pdfName = displayName;
@@ -2907,10 +2907,6 @@ class Johnny5Viewer {
 
     async loadNewPDF(skipAutoRefresh = false) {
         try {
-
-            // Clear all previous state
-            this.clearPreviousDocument();
-
             // Use the exact same code path as initial load
             await this.loadPDFFromServer(skipAutoRefresh);
 
@@ -2921,6 +2917,11 @@ class Johnny5Viewer {
     }
 
     clearPreviousDocument() {
+        // Reset identifiers so subsequent API calls don't reference the previous PDF
+        this.pdfChecksum = null;
+        this.currentCacheKey = null;
+        this.loadedDoclingOptions = null;
+
         // Reset all data structures first
         this.allStructureData = {};
         this.allDensityData = {};
@@ -2979,12 +2980,14 @@ class Johnny5Viewer {
 
     async uploadPDF(file) {
         try {
-            this.setIndicatorLoading('Uploading...');
+        this.setIndicatorLoading('Uploading...');
 
-            const formData = new FormData();
-            formData.append('file', file);
+        const formData = new FormData();
+        formData.append('file', file);
 
-            const response = await fetch('/api/disassemble', {
+        const uploadUrl = this._buildApiUrl('/api/disassemble', { pdf_checksum: undefined });
+
+        const response = await fetch(uploadUrl, {
                 method: 'POST',
                 body: formData
             });
@@ -2997,7 +3000,12 @@ class Johnny5Viewer {
             const result = await response.json();
 
             if (result.success) {
-                this.addPdfLogEntry('Upload complete');
+            if (result.pdf_checksum) {
+                this.pdfChecksum = result.pdf_checksum;
+                this.addPdfLogEntry(`Upload complete -> checksum=${result.pdf_checksum}`, 'info');
+            } else {
+                this.addPdfLogEntry('Upload complete', 'info');
+            }
             } else {
                 throw new Error(result.error || 'Upload failed');
             }
