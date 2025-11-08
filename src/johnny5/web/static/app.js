@@ -888,6 +888,10 @@ class Johnny5Viewer {
                         window.J5.settings.docling = options;
                         try { localStorage.setItem('jny5-docling', JSON.stringify(options)); } catch {}
 
+                        if (this._isCurrentOptionSet(options)) {
+                            this.updateRefreshIndicator('processing');
+                        }
+
                         await this._triggerRefresh(options);
                         // SSE will trigger loadAllPageData() when disassembly completes
                         // Indicator will be updated to 'up-to-date' when SSE confirms completion
