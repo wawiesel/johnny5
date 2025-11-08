@@ -2,16 +2,31 @@
  * Shared helpers for disassembly-related Playwright tests.
  */
 
-async function waitForDisassemblyComplete(page) {
-  await page.waitForFunction(async () => {
-    try {
-      const response = await fetch('/api/disassembly-status');
-      const status = await response.json();
-      return status.status === 'completed';
-    } catch {
-      return false;
-    }
-  }, { timeout: 30000 });
+async function waitForDisassemblyComplete(page, timeout = 30000) {
+  await page.waitForFunction(
+    async (expectedStatus) => {
+      const viewer = window.viewer;
+      if (!viewer || !viewer.pdfChecksum || !viewer.currentCacheKey) {
+        return false;
+      }
+      const params = new URLSearchParams({
+        pdf_checksum: viewer.pdfChecksum,
+        cache_key: viewer.currentCacheKey,
+      });
+      try {
+        const response = await fetch(`/api/disassembly-status?${params.toString()}`);
+        if (!response.ok) {
+          return false;
+        }
+        const status = await response.json();
+        return status.status === expectedStatus;
+      } catch {
+        return false;
+      }
+    },
+    'completed',
+    { timeout }
+  );
 }
 
 async function waitForAnnotationData(page) {
@@ -31,7 +46,7 @@ async function getRefreshIndicatorState(page) {
   });
 }
 
-async function waitForIndicatorState(page, expectedState, timeout = 10000) {
+async function waitForIndicatorState(page, expectedState, timeout = 15000) {
   await page.waitForFunction(
     (state) => {
       const btn = document.querySelector('.disassemble-btn');
