@@ -47,14 +47,22 @@ async function getRefreshIndicatorState(page) {
 }
 
 async function waitForIndicatorState(page, expectedState, timeout = 15000) {
-  await page.waitForFunction(
-    (state) => {
+  try {
+    await page.waitForFunction(
+      (state) => {
+        const btn = document.querySelector('.disassemble-btn');
+        return btn && btn.classList.contains(state);
+      },
+      expectedState,
+      { timeout }
+    );
+  } catch (error) {
+    const classes = await page.evaluate(() => {
       const btn = document.querySelector('.disassemble-btn');
-      return btn && btn.classList.contains(state);
-    },
-    expectedState,
-    { timeout }
-  );
+      return btn ? Array.from(btn.classList.values()) : [];
+    });
+    throw new Error(`${error.message} (button classes: ${classes.join(', ') || 'none'})`);
+  }
 }
 
 async function waitForPageReady(page) {
