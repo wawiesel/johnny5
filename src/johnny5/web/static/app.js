@@ -379,7 +379,7 @@ class Johnny5Viewer {
     // Check if options match currently displayed option set
     _isCurrentOptionSet(options) {
         if (!this.loadedDoclingOptions) return true; // First load
-        return JSON.stringify(options) === JSON.stringify(this.loadedDoclingOptions);
+        return this.optionsMatch(options, this.loadedDoclingOptions);
     }
 
     // Check if cache_key is the currently displayed one
