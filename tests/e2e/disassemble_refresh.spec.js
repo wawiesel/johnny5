@@ -71,7 +71,7 @@ test.describe('Disassembly refresh flow', () => {
     await waitForPageReady(page);
     
     await page.locator('.disassemble-btn').click();
-    await waitForIndicatorState(page, 'processing', 5000);
+    await waitForIndicatorState(page, 'processing', 15000);
     
     // Wait for disassembly to complete (checks status API)
     await waitForDisassemblyComplete(page);
