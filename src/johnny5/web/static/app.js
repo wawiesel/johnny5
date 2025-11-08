@@ -328,6 +328,9 @@ class Johnny5Viewer {
         // Update log with cache_key
         this.addPdfLogEntry(`requesting option set ${optionsDesc} -> checksum=${cache_key}`, 'info');
 
+        // Determine whether a new job is running
+        const jobInProgress = Boolean(request_id);
+
         // Store request_id mapping
         if (request_id) {
             this.requestIdMap[request_id] = {
@@ -342,7 +345,7 @@ class Johnny5Viewer {
 
         // Update cache_key status
         this._updateCacheKeyStatus(cache_key, {
-            status: cache_exists ? 'completed' : 'pending',
+            status: jobInProgress ? 'pending' : 'completed',
             cache_key,
             options
         });
@@ -350,12 +353,15 @@ class Johnny5Viewer {
         // Set current cache_key if this is the active option set
         if (this._isCurrentOptionSet(options)) {
             this.currentCacheKey = cache_key;
-            if (cache_exists) {
+            if (jobInProgress) {
+                this.updateRefreshIndicator('processing');
+                this.addPdfLogEntry(`options checksum=${cache_key} not in cache, computing`, 'info');
+            } else if (cache_exists) {
                 this.updateRefreshIndicator('up-to-date');
                 this.addPdfLogEntry(`options checksum=${cache_key} in cache, ready to view`, 'info');
             } else {
-                this.updateRefreshIndicator('processing');
-                this.addPdfLogEntry(`options checksum=${cache_key} not in cache, computing`, 'info');
+                this.updateRefreshIndicator('needs-run');
+                this.addPdfLogEntry(`options checksum=${cache_key} unavailable`, 'warning');
             }
         }
 
