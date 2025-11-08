@@ -10,8 +10,8 @@ class Johnny5Viewer {
         this.totalPages = 0;
         this.scale = 1.0;
         this.eventSource = null;
-        this.allStructureData = {}; // Store structure data for all pages
-        this.allDensityData = {}; // Store density data for all pages
+        this.allStructureData = {}; // Store structure data for all pages (keyed by cache_key)
+        this.allDensityData = {}; // Store density data for all pages (keyed by cache_key)
         this.loadedPages = new Set(); // Track which pages have been loaded
         this.renderedCanvases = new Set(); // Track which page canvases have been rendered (for virtualization)
         this.activeLabels = new Set(); // Currently enabled labels
@@ -26,6 +26,24 @@ class Johnny5Viewer {
         this.bboxPadding = 2; // Padding for bounding box expansion (in pixels)
         this.loadedDoclingOptions = null; // Options used for currently loaded disassembly data
         this.refreshButton = null; // Reference to refresh button for indicator management
+        this.disassemblyComplete = false; // Track if disassembly is complete (don't load data until ready)
+        this.refreshFailed = false; // Track if the last refresh attempt failed
+        
+        // Multi-user support: instance identification
+        this.instanceId = this._getOrCreateInstanceId();
+        
+        // Multi-PDF support: PDF identification
+        this.pdfChecksum = null; // Current PDF checksum
+        
+        // Multi-option-set support: track all requested option sets
+        this.requestIdMap = {}; // request_id -> {cache_key, options, status}
+        this.cacheKeyStatus = {}; // cache_key -> {status, queue_position, progress, estimated_time}
+        this.currentCacheKey = null; // Currently displayed cache_key
+        
+        // Status line for polling updates
+        this.statusLineElement = null;
+        this.statusPollInterval = null;
+        this.cleanupTimeouts = []; // Track timeouts for cleanup
         // Overlay configurations (structured for future multiple sets like 'fixup')
         this.overlayConfigs = {
             primary: {
@@ -116,9 +134,75 @@ class Johnny5Viewer {
         this._elementCache = {};
     }
 
+    // Generate or retrieve instance_id from localStorage
+    _getOrCreateInstanceId() {
+        const key = 'jny5_instance_id';
+        let instanceId = localStorage.getItem(key);
+        if (!instanceId) {
+            // Generate UUID v4
+            instanceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+            localStorage.setItem(key, instanceId);
+        }
+        return instanceId;
+    }
+
+    // Helper to build API URLs with common query parameters
+    _buildApiUrl(endpoint, params = {}) {
+        const baseParams = {
+            pdf_checksum: this.pdfChecksum,
+            instance_id: this.instanceId,
+            ...params
+        };
+        
+        const queryString = Object.entries(baseParams)
+            .filter(([, value]) => value != null) // Remove null/undefined params
+            .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+            .join('&');
+        
+        return `${endpoint}${queryString ? '?' + queryString : ''}`;
+    }
+
+    // Helper to make API calls with consistent error handling
+    async _apiCall(url, options = {}) {
+        let response;
+        try {
+            response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+        } catch (error) {
+            throw new Error(`Network error: ${error.message}`);
+        }
+        
+        let result;
+        try {
+            result = await response.json();
+        } catch {
+            // Response is not JSON (might be HTML error page, etc.)
+            const text = await response.text().catch(() => 'Unable to read response');
+            throw new Error(`Invalid JSON response (${response.status}): ${text.substring(0, 100)}`);
+        }
+        
+        if (!response.ok || (result.success === false)) {
+            throw new Error(result.error || `API call failed: ${response.statusText}`);
+        }
+        
+        return result;
+    }
+
     // Disassembly indicator state management
     updateRefreshIndicator(state) {
         if (!this.refreshButton) return;
+        if (this.refreshButton.classList.contains('error') && state === 'up-to-date') {
+            return;
+        }
 
         // Remove all state classes
         this.refreshButton.classList.remove('up-to-date', 'needs-run', 'processing', 'error');
@@ -126,6 +210,16 @@ class Johnny5Viewer {
         // Add the new state class
         if (state) {
             this.refreshButton.classList.add(state);
+        }
+    }
+
+    /**
+     * Restore density charts after grid updates.
+     * This is called whenever density grids are redrawn to ensure charts remain visible.
+     */
+    async _restoreDensityCharts() {
+        if (this.densityCharts && Object.keys(this.allDensityData).length > 0) {
+            await this.densityCharts.renderAllDensityCharts();
         }
     }
 
@@ -190,31 +284,209 @@ class Johnny5Viewer {
     }
 
     // Common method to trigger disassembly refresh
-    async _triggerRefresh(options, errorContext = 'Refresh') {
-        this.updateRefreshIndicator('processing');
-
-        const response = await fetch('/api/disassemble-refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(options)
-        });
-
-        const result = await response.json();
-        if (!result.success) {
-            throw new Error(result.error || `${errorContext} failed`);
+    async _triggerRefresh(options, forceRefresh = true) {
+        if (!this.pdfChecksum) {
+            throw new Error('PDF checksum not available');
         }
 
-        // Success - SSE will handle completion and update indicator to green
+        this.refreshFailed = false;
+
+        // Format options for log message
+        const optionsDesc = this._formatOptionsDescription(options);
+        
+        // Log request initiation
+        this.addPdfLogEntry(`requesting option set ${optionsDesc} -> checksum=...`, 'info');
+
+        let result;
+        try {
+            result = await this._apiCall(
+                this._buildApiUrl('/api/disassemble-refresh', { force: forceRefresh }),
+                {
+                    method: 'POST',
+                    body: JSON.stringify(options)
+                }
+            );
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.addPdfLogEntry(`Disassembly refresh failed: ${message}`, 'error');
+            if (this._isCurrentOptionSet(options)) {
+                this.updateRefreshIndicator('error');
+                this.refreshFailed = true;
+                this._stopStatusPolling();
+            }
+            throw error;
+        }
+
+        // Handle response: {cache_key, cache_exists, request_id}
+        const { cache_key, cache_exists, request_id } = result;
+        
+        // Validate cache_key
+        if (!cache_key) {
+            throw new Error('Server did not return cache_key');
+        }
+        
+        // Update log with cache_key
+        this.addPdfLogEntry(`requesting option set ${optionsDesc} -> checksum=${cache_key}`, 'info');
+
+        // Store request_id mapping
+        if (request_id) {
+            this.requestIdMap[request_id] = {
+                cache_key,
+                options,
+                status: 'pending'
+            };
+            
+            // Start polling for status if job is in progress
+            this._startStatusPolling(cache_key);
+        }
+
+        // Update cache_key status
+        this._updateCacheKeyStatus(cache_key, {
+            status: cache_exists ? 'completed' : 'pending',
+            cache_key,
+            options
+        });
+
+        // Set current cache_key if this is the active option set
+        if (this._isCurrentOptionSet(options)) {
+            this.currentCacheKey = cache_key;
+            if (cache_exists) {
+                this.updateRefreshIndicator('up-to-date');
+                this.addPdfLogEntry(`options checksum=${cache_key} in cache, ready to view`, 'info');
+            } else {
+                this.updateRefreshIndicator('processing');
+                this.addPdfLogEntry(`options checksum=${cache_key} not in cache, computing`, 'info');
+            }
+        }
+
         return result;
     }
 
+    // Format options as human-readable string for logs
+    _formatOptionsDescription(options) {
+        if (options.enableOcr === undefined) {
+            throw new Error('Docling options missing required property: enableOcr');
+        }
+        return `{OCR=${options.enableOcr ? 'on' : 'off'}}`;
+    }
+
+    // Check if options match currently displayed option set
+    _isCurrentOptionSet(options) {
+        if (!this.loadedDoclingOptions) return true; // First load
+        return JSON.stringify(options) === JSON.stringify(this.loadedDoclingOptions);
+    }
+
+    // Check if cache_key is the currently displayed one
+    _isCurrentCacheKey(cache_key) {
+        return cache_key && cache_key === this.currentCacheKey;
+    }
+
+    // Update cache_key status (DRY helper)
+    _updateCacheKeyStatus(cache_key, updates) {
+        if (!cache_key) return;
+        this.cacheKeyStatus[cache_key] = {
+            ...this.cacheKeyStatus[cache_key],
+            ...updates
+        };
+    }
+
+    // Handle job completion/error (DRY helper)
+    _handleJobCompletion(cache_key, status, options, error = null) {
+        if (!cache_key) return;
+
+        if (status === 'completed' && this.refreshFailed) {
+            return;
+        }
+
+        const optionsDesc = this._formatOptionsDescription(options);
+        
+        // Update cache_key status
+        this._updateCacheKeyStatus(cache_key, {
+            status,
+            progress: status === 'completed' ? 1.0 : 0.0
+        });
+
+        if (status === 'completed') {
+            this.addPdfLogEntry(`options checksum=${cache_key} (options set ${optionsDesc}) ready`, 'info');
+            
+            if (this._isCurrentCacheKey(cache_key)) {
+                this.updateRefreshIndicator('up-to-date');
+                this.loadedDoclingOptions = options;
+                this.disassemblyComplete = true;
+                this.loadedPages.clear();
+                
+                this.loadAllPageData().catch(err => {
+                    console.error('Error loading page data after disassembly:', err);
+                    this.addPdfLogEntry(`Error loading annotations: ${err.message}`, 'error');
+                    this.updateRefreshIndicator('error');
+                });
+            }
+        } else if (status === 'error') {
+            this.addPdfLogEntry(`options checksum=${cache_key} (options set ${optionsDesc}) failed: ${error || 'Unknown error'}`, 'error');
+            
+            if (this._isCurrentCacheKey(cache_key)) {
+                this.updateRefreshIndicator('error');
+            }
+        }
+    }
+
     async triggerAutoRefresh() {
-        // Trigger automatic disassembly refresh on page load
+        // On page load, check if cache exists for current options
+        // If cache exists, load it immediately. If not, run disassembly automatically (no force refresh).
+        if (!this.pdfChecksum) {
+            this.addPdfLogEntry('PDF checksum not available for auto-refresh', 'warning');
+            return;
+        }
+
         try {
             const options = this.getCurrentDoclingOptions();
-            await this._triggerRefresh(options, 'Auto-refresh');
+            const optionsDesc = this._formatOptionsDescription(options);
+            
+            // Check if cache exists for these options
+            const result = await this._apiCall(
+                this._buildApiUrl('/api/check-cache'),
+                {
+                    method: 'POST',
+                    body: JSON.stringify(options)
+                }
+            );
+            
+            const { cache_key, cache_exists } = result;
+
+            // Validate cache_key
+            if (!cache_key) {
+                throw new Error('Server did not return cache_key');
+            }
+
+            if (cache_exists) {
+                // Cache exists - load it immediately
+                this.addPdfLogEntry(`requesting option set ${optionsDesc} -> checksum=${cache_key}`, 'info');
+                this.addPdfLogEntry(`options checksum=${cache_key} in cache, ready to view`, 'info');
+                
+                // Load cache data
+                const loadResult = await this._apiCall(
+                    this._buildApiUrl('/api/load-cache', { cache_key }),
+                    { method: 'POST' }
+                );
+                
+                if (loadResult.success) {
+                    this.currentCacheKey = cache_key;
+                    this._updateCacheKeyStatus(cache_key, { status: 'completed', cache_key, options });
+                    this.loadedDoclingOptions = options;
+                    this.updateRefreshIndicator('up-to-date');
+                    
+                    // Mark disassembly as complete and load data
+                    this.disassemblyComplete = true;
+                    await this.loadAllPageData();
+                }
+            } else {
+                // No cache - run disassembly automatically (without force refresh)
+                this.addPdfLogEntry(`requesting option set ${optionsDesc} -> checksum=...`, 'info');
+                this.updateRefreshIndicator('processing');
+                await this._triggerRefresh(options, false);
+            }
         } catch (error) {
-            this.addPdfLogEntry(`Auto-refresh failed: ${error.message}`, 'error');
+            this.addPdfLogEntry(`Auto-refresh check failed: ${error.message}`, 'error');
             this.updateRefreshIndicator('error');
         }
     }
@@ -245,6 +517,21 @@ class Johnny5Viewer {
 
         // Connect to SSE for logs
         this.connectEventStream();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            this._stopStatusPolling();
+            if (this.disassemblyPollInterval) {
+                clearInterval(this.disassemblyPollInterval);
+                this.disassemblyPollInterval = null;
+            }
+            // Clear all pending cleanup timeouts
+            this.cleanupTimeouts.forEach(timeout => clearTimeout(timeout));
+            this.cleanupTimeouts = [];
+            if (this.eventSource) {
+                this.eventSource.close();
+            }
+        });
 
         // Load PDF from server (from CLI command)
         await this.loadServerPDF();
@@ -307,9 +594,13 @@ class Johnny5Viewer {
                         // Upload file to server (triggers background disassembly)
                         await this.uploadPDF(file);
 
-                        // Load and render PDF (loadPDFFromServer handles disassembly check)
+                        // Load and render PDF
+                        // Skip auto-refresh since disassembly is already running from upload
                         this.setIndicatorLoading('Loading...');
-                        await this.loadNewPDF();
+                        await this.loadNewPDF(true);
+                        
+                        // Check cache - if disassembly is in progress, SSE will handle completion
+                        await this.triggerAutoRefresh();
                     } catch (error) {
                         this.addPdfLogEntry(`Failed to load PDF: ${error.message}`, 'error');
                         console.error('Error in file upload handler:', error);
@@ -415,10 +706,10 @@ class Johnny5Viewer {
                         if (!Number.isFinite(val) || val <= 0) return;
                         window.J5.settings.pdfStep = val;
                         window.clearTimeout(redrawTimer);
-                        redrawTimer = setTimeout(() => {
-                            this.drawPdfGrid();
-                            this.drawPdfYDensityGrid();
-                            this.drawAnnotationListGrid();
+                        redrawTimer = setTimeout(async () => {
+                            await this.drawPdfGrid();
+                            await this.drawPdfYDensityGrid();
+                            await this.drawAnnotationListGrid();
                         }, 10);
                     };
 
@@ -479,9 +770,9 @@ class Johnny5Viewer {
                         if (!Number.isFinite(val) || val <= 0) return;
                         window.J5.settings.pdfStep = val;
                         window.clearTimeout(redrawTimer);
-                        redrawTimer = setTimeout(() => {
-                            this.drawPdfGrid();
-                            this.drawPdfYDensityGrid();
+                        redrawTimer = setTimeout(async () => {
+                            await this.drawPdfGrid();
+                            await this.drawPdfYDensityGrid();
                         }, 10);
                     };
                     input.addEventListener('change', applyValue);
@@ -591,7 +882,7 @@ class Johnny5Viewer {
                         window.J5.settings.docling = options;
                         try { localStorage.setItem('jny5-docling', JSON.stringify(options)); } catch {}
 
-                        await this._triggerRefresh(options, 'Disassembly refresh');
+                        await this._triggerRefresh(options);
                         // SSE will trigger loadAllPageData() when disassembly completes
                         // Indicator will be updated to 'up-to-date' when SSE confirms completion
                     } catch (error) {
@@ -752,61 +1043,63 @@ class Johnny5Viewer {
     }
 
     connectEventStream() {
-        this.addPdfLogEntry('Connecting to event stream...', 'info');
-
-        this.eventSource = new EventSource('/api/events');
+        // Connect to SSE with instance_id for filtered notifications
+        this.eventSource = new EventSource(`/api/events?instance_id=${encodeURIComponent(this.instanceId)}`);
 
         this.eventSource.onopen = () => {
-            this.addPdfLogEntry('Event stream connected', 'info');
+            // Connection established
         };
 
         this.eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
 
-                // Handle disassembly completion notification
-                if (data.type === 'disassembly_complete') {
-                    this.addPdfLogEntry('Disassembly complete', 'info');
-
-                    // Log file path if provided
-                    if (data.log_file) {
-                        this.addPdfLogEntry(`Full log: ${data.log_file}`, 'info');
+                // Handle job completion notification
+                if (data.type === 'job_complete') {
+                    const { request_id, cache_key, status, error } = data;
+                    
+                    // Validate data
+                    if (!cache_key || !request_id) {
+                        console.warn('Invalid job_complete notification:', data);
+                        return;
                     }
-
-                    // Update loaded options from server notification (what was actually processed)
-                    if (data.options) {
-                        this.loadedDoclingOptions = data.options;
-                        this.addPdfLogEntry(
-                            `Disassembly complete (OCR: ${data.options.enableOcr ? 'on' : 'off'})`,
-                            'info'
-                        );
-                    } else {
-                        // Fallback to current options if not provided
-                        this.loadedDoclingOptions = this.getCurrentDoclingOptions();
+                    
+                    // Find the request in our mapping (handle duplicate notifications gracefully)
+                    const requestInfo = this.requestIdMap[request_id];
+                    if (!requestInfo) {
+                        // Notification for a request we don't know about (maybe from previous session)
+                        console.warn(`Received notification for unknown request_id: ${request_id}`);
+                        return;
                     }
-                    this.updateRefreshIndicator('up-to-date');
-
-                    // Clear polling if active
-                    if (this.disassemblyPollInterval) {
-                        clearInterval(this.disassemblyPollInterval);
-                        this.disassemblyPollInterval = null;
+                    
+                    // Skip if we've already processed this status (handle duplicate SSE messages)
+                    if (requestInfo.status === status) {
+                        return;
                     }
-                    this.loadAllPageData().catch(error => {
-                        console.error('Error loading page data after disassembly:', error);
-                        this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
-                        this.updateRefreshIndicator('error');
-                    });
+                    
+                    const { options } = requestInfo;
+                    
+                    // Update request status
+                    requestInfo.status = status;
+                    
+                    // Handle completion/error using DRY helper
+                    this._handleJobCompletion(cache_key, status, options, error);
+                    
+                    // Stop status polling for this cache_key
+                    this._stopStatusPolling();
+                    
+                    // Cleanup: Remove from requestIdMap after a delay (keep for a bit in case of retries)
+                    const cleanupTimeout = setTimeout(() => {
+                        if (this.requestIdMap[request_id]?.status === status) {
+                            delete this.requestIdMap[request_id];
+                        }
+                        // Remove from tracking array
+                        const idx = this.cleanupTimeouts.indexOf(cleanupTimeout);
+                        if (idx > -1) this.cleanupTimeouts.splice(idx, 1);
+                    }, 60000); // Clean up after 1 minute
+                    this.cleanupTimeouts.push(cleanupTimeout);
+                    
                     return;
-                }
-
-                // Handle regular log entries
-                if (data.pane && data.message) {
-                    const level = data.level ? data.level.toLowerCase() : 'info';
-                    if (data.pane === 'left') {
-                        this.addPdfLogEntry(data.message, level);
-                    } else if (data.pane === 'right') {
-                        this.addRecLogEntry(data.message, level);
-                    }
                 }
             } catch (e) {
                 this.addPdfLogEntry(`Event parse error: ${e.message}`, 'error');
@@ -834,7 +1127,7 @@ class Johnny5Viewer {
                     // Disassembly completed, load annotations
                     clearInterval(this.disassemblyPollInterval);
                     this.disassemblyPollInterval = null;
-                    this.addPdfLogEntry('Disassembly complete (via polling)', 'info');
+                    // Completion already logged by server
                     this.loadAllPageData().catch(error => {
                         console.error('Error loading page data after disassembly:', error);
                         this.addPdfLogEntry(`Error loading annotations: ${error.message}`, 'error');
@@ -862,18 +1155,107 @@ class Johnny5Viewer {
 
     setIndicatorError(message) { ThemeToggle.setIndicatorError(message); }
 
+    // Stop status polling and cleanup
+    _stopStatusPolling() {
+        if (this.statusPollInterval) {
+            clearInterval(this.statusPollInterval);
+            this.statusPollInterval = null;
+        }
+        this.updateStatusLine(null); // Hide status line
+            this.refreshFailed = false;
+    }
+
+    // Start polling for status updates (for progress indicators)
+    _startStatusPolling(cache_key) {
+        if (!this.pdfChecksum || !cache_key) return;
+        
+        // Clear existing polling if any
+        this._stopStatusPolling();
+        
+        // Store the cache_key we're polling for (to handle race conditions)
+        const pollingCacheKey = cache_key;
+        let consecutiveFailures = 0;
+        const MAX_CONSECUTIVE_FAILURES = 5; // Stop after 5 consecutive failures
+        
+        // Poll every 3 seconds for status updates
+        this.statusPollInterval = setInterval(async () => {
+            // Check if we're still polling for the same cache_key (handle race condition)
+            // Only stop if cache_key was removed entirely (not just if currentCacheKey changed)
+            // This allows polling for background jobs even if user switched to different option set
+            if (!this.cacheKeyStatus[pollingCacheKey]) {
+                // Cache key was removed, stop polling
+                this._stopStatusPolling();
+                return;
+            }
+            if (this.refreshFailed) {
+                this._stopStatusPolling();
+                return;
+            }
+            
+            // Check if job is already completed/errored (avoid unnecessary polling)
+            const cachedStatus = this.cacheKeyStatus[pollingCacheKey]?.status;
+            if (cachedStatus === 'completed' || cachedStatus === 'error') {
+                this._stopStatusPolling();
+                return;
+            }
+            
+            try {
+                const statusData = await this._apiCall(
+                    this._buildApiUrl('/api/disassembly-status', { cache_key: pollingCacheKey })
+                );
+                    
+                // Reset failure counter on success
+                consecutiveFailures = 0;
+                    
+                // Update cache_key status
+                this._updateCacheKeyStatus(pollingCacheKey, statusData);
+                
+                // Update status line if this is the current cache_key
+                if (this._isCurrentCacheKey(pollingCacheKey)) {
+                    this.updateStatusLine(statusData);
+                    
+                    // Update indicator based on status
+                    if (statusData.status === 'completed') {
+                        this.updateRefreshIndicator('up-to-date');
+                    } else if (statusData.status === 'error') {
+                        this.updateRefreshIndicator('error');
+                    }
+                }
+                
+                // Stop polling if job is completed or errored
+                if (statusData.status === 'completed' || statusData.status === 'error') {
+                    this._stopStatusPolling();
+                }
+            } catch (error) {
+                consecutiveFailures++;
+                console.warn(`Error polling status (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}):`, error);
+                
+                // Stop polling after too many consecutive failures (likely network issue or server down)
+                if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                    console.error('Stopping status polling due to repeated failures');
+                    this._stopStatusPolling();
+                    if (this._isCurrentCacheKey(pollingCacheKey)) {
+                        this.updateRefreshIndicator('error');
+                        this.addPdfLogEntry('Status polling failed - check connection', 'error');
+                    }
+                }
+            }
+        }, 3000); // Poll every 3 seconds
+    }
+
     async checkDisassemblyStatus() {
         /**
-         * Check disassembly status and wait if necessary
+         * Check disassembly status for current cache_key
          * Returns true if disassembly is complete, false if still pending/in progress
          */
+        if (!this.pdfChecksum || !this.currentCacheKey) {
+            return false;
+        }
+        
         try {
-            const response = await fetch('/api/disassembly-status');
-            if (!response.ok) {
-                console.warn('Could not fetch disassembly status');
-                return false;
-            }
-            const status = await response.json();
+            const status = await this._apiCall(
+                this._buildApiUrl('/api/disassembly-status', { cache_key: this.currentCacheKey })
+            );
             return status.status === 'completed';
         } catch (error) {
             console.warn('Error checking disassembly status:', error);
@@ -885,26 +1267,29 @@ class Johnny5Viewer {
         await this.loadPDFFromServer();
     }
 
-    async loadPDFFromServer() {
+    async loadPDFFromServer(skipAutoRefresh = false) {
         try {
             this.setIndicatorLoading('Loading...');
 
             // Get PDF info from server to display filename
             let pdfName = 'PDF';
             try {
-                const infoResponse = await fetch('/api/pdf-info');
-                if (infoResponse.ok) {
-                    const info = await infoResponse.json();
-                    const displayName = (info.display_name || '').trim();
-                    if (displayName) {
-                        pdfName = displayName;
-                    } else {
-                        const pathStr = info.pdf_path || '';
-                        pdfName = pathStr.split('/').pop() || pathStr.split('\\').pop() || 'PDF';
-                    }
-                    // Update checksum and modified chips if present
+                const info = await this._apiCall('/api/pdf-info');
+                const displayName = (info.display_name || '').trim();
+                if (displayName) {
+                    pdfName = displayName;
+                } else {
+                    const pathStr = info.pdf_path || '';
+                    pdfName = pathStr.split('/').pop() || pathStr.split('\\').pop() || 'PDF';
+                }
+                // Update checksum and store for later use
+                if (info.checksum) {
+                    this.pdfChecksum = info.checksum;
                     const sumVal = document.getElementById('pdf-checksum-value');
-                    if (sumVal && info.checksum) { sumVal.textContent = String(info.checksum); sumVal.title = String(info.checksum); }
+                    if (sumVal) {
+                        sumVal.textContent = String(info.checksum);
+                        sumVal.title = String(info.checksum);
+                    }
                 }
             } catch (e) {
                 console.warn('Could not fetch PDF info:', e);
@@ -912,16 +1297,17 @@ class Johnny5Viewer {
 
 
             // Load PDF from server immediately (don't wait for disassembly)
-            // Add cache buster to ensure fresh load when server restarts with different PDF
-            const cacheBuster = `?t=${Date.now()}`;
-            const pdfUrl = `/api/pdf${cacheBuster}`;
+            // Use pdfChecksum if available, otherwise use cache buster
+            const pdfUrl = this.pdfChecksum 
+                ? this._buildApiUrl('/api/pdf', { pdf_checksum: this.pdfChecksum })
+                : `/api/pdf?t=${Date.now()}`; // Fallback cache buster if checksum not available
 
             const loadingTask = pdfjsLib.getDocument(pdfUrl);
             this.pdfDoc = await loadingTask.promise;
             this.totalPages = this.pdfDoc.numPages;
             this.currentPage = 1;
 
-            this.addPdfLogEntry(`Loading: ${pdfName} (${this.totalPages} pages)`);
+            this.addPdfLogEntry(`Loading: ${pdfName} (${this.totalPages} pages)`, 'info');
 
             // Reflect loaded file name in UI
             const fileNameDisplay = document.getElementById('current-file-name');
@@ -930,12 +1316,23 @@ class Johnny5Viewer {
             // Initialize page navigation (will show 0 rendered pages initially)
             this.updatePageNavigation();
 
+            // Initialize pageViewportHeights if not already initialized
+            if (!this.pageViewportHeights) {
+                this.pageViewportHeights = {};
+            }
+            if (!this.pageViewportWidths) {
+                this.pageViewportWidths = {};
+            }
+
             // Fit to width and render PDF first (so user sees something immediately)
+            // This will also create placeholders and update scrollbar height
             await this.fitWidth();
 
             // Trigger automatic refresh with default options on page load
-            // This ensures fresh disassembly and sets up the indicator flow
-            await this.triggerAutoRefresh();
+            // Skip if disassembly is already running (e.g., from upload)
+            if (!skipAutoRefresh) {
+                await this.triggerAutoRefresh();
+            }
 
             // Note: checkDisassemblyStatus and manual loading removed
             // Auto-refresh handles the full flow: red → yellow pulsing → green
@@ -1002,41 +1399,75 @@ class Johnny5Viewer {
         /**
          * Load structure and density data for a single page
          * Returns true if data was loaded, false if already loaded or failed
+         * Only loads data if disassembly is complete
          */
+        // Don't try to load data until disassembly is complete
+        if (!this.disassemblyComplete) {
+            return false;
+        }
+        
         if (this.loadedPages.has(pageNum)) {
             return false; // Already loaded
+        }
+
+        if (!this.currentCacheKey) {
+            // No cache_key available yet - skip loading
+            return false;
         }
 
         try {
             // Load structure and density data in parallel
             const [structureResponse, densityResponse] = await Promise.all([
-                fetch(`/api/structure/${pageNum}`),
-                fetch(`/api/density/${pageNum}`)
+                fetch(this._buildApiUrl(`/api/structure/${pageNum}`, { cache_key: this.currentCacheKey })),
+                fetch(this._buildApiUrl(`/api/density/${pageNum}`, { cache_key: this.currentCacheKey }))
             ]);
+
+            let dataLoaded = false;
 
             if (structureResponse.ok) {
                 const structureData = await structureResponse.json();
-                this.allStructureData[pageNum] = structureData;
-                // Update checksum from disassembled lossless JSON metadata if present
-                try {
-                    const checksum = structureData?.metadata?._checksum || structureData?.metadata?.checksum;
-                    const sumVal = document.getElementById('pdf-checksum-value');
-                    if (sumVal && checksum) {
-                        sumVal.textContent = String(checksum);
-                        sumVal.title = String(checksum);
-                    }
-                } catch {}
+                // Check if response contains an error (expected during disassembly)
+                if (structureData.error) {
+                    // Structure data not available yet - this is normal during disassembly
+                    // Don't log or mark as error, just skip silently
+                } else {
+                    this.allStructureData[pageNum] = structureData;
+                    dataLoaded = true;
+                    // Update checksum from disassembled lossless JSON metadata if present
+                    try {
+                        const checksum = structureData?.metadata?._checksum || structureData?.metadata?.checksum;
+                        const sumVal = document.getElementById('pdf-checksum-value');
+                        if (sumVal && checksum) {
+                            sumVal.textContent = String(checksum);
+                            sumVal.title = String(checksum);
+                        }
+                    } catch {}
+                }
             }
 
             if (densityResponse.ok) {
                 const densityData = await densityResponse.json();
-                this.allDensityData[pageNum] = densityData;
+                if (!densityData.error) {
+                    this.allDensityData[pageNum] = densityData;
+                    dataLoaded = true;
+                }
             }
 
-            this.loadedPages.add(pageNum);
-            return true;
+            // Only mark as loaded if we actually got data
+            // This allows retrying later when disassembly completes
+            if (dataLoaded) {
+                this.loadedPages.add(pageNum);
+                return true;
+            }
+            
+            // Data not available yet - return false but don't log (expected during disassembly)
+            return false;
         } catch (error) {
-            console.log(`Failed to load data for page ${pageNum}: ${error.message}`);
+            // Network errors are unexpected - only log if it's not a fetch error during disassembly
+            // "Failed to fetch" usually means the request was aborted or server is busy
+            if (!error.message.includes('Failed to fetch')) {
+                console.warn(`Unexpected error loading data for page ${pageNum}: ${error.message}`);
+            }
             return false;
         }
     }
@@ -1084,7 +1515,7 @@ class Johnny5Viewer {
         const dataPromises = [];
         for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
             if (!this.loadedPages.has(pageNum)) {
-                dataPromises.push(this.loadPageData(pageNum));
+                dataPromises.push(this.loadPageData(pageNum).catch(() => false));
             }
         }
 
@@ -1093,7 +1524,7 @@ class Johnny5Viewer {
         if (this.renderedCanvases) {
             for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
                 if (!this.renderedCanvases.has(pageNum)) {
-                    canvasPromises.push(this.renderCanvasForPage(pageNum));
+                    canvasPromises.push(this.renderCanvasForPage(pageNum).catch(() => {}));
                 }
             }
         }
@@ -1141,9 +1572,7 @@ class Johnny5Viewer {
                 await this.drawAnnotationsGrid();
 
                 // Render density charts when data is available
-                if (this.densityCharts && Object.keys(this.allDensityData).length > 0) {
-                    await this.densityCharts.renderAllDensityCharts();
-                }
+                await this._restoreDensityCharts();
 
                 // Log annotation statistics
                 let totalBoundingBoxes = 0;
@@ -1169,7 +1598,7 @@ class Johnny5Viewer {
 
                 this.addPdfLogEntry(`${totalBoundingBoxes} bounding boxes found (${typeList})`);
             } else {
-                this.addPdfLogEntry('No structure data available. Run disassemble command first.', 'warning');
+                // Structure data not available yet (will be available after disassembly)
             }
         } catch (error) {
             this.addPdfLogEntry(`Failed to load page data: ${error.message}`, 'error');
@@ -1334,18 +1763,24 @@ class Johnny5Viewer {
             container.style.alignItems = 'center';
             container.style.padding = '5px 5px'; // 5px top/bottom and sides
 
-            // Check if we need to rebuild placeholders (only on first render or page count change)
+            // Lazy loading: only create placeholders for visible buffer, not all pages
             const existingPlaceholders = container.querySelectorAll('.pdf-page-wrapper');
-            const needsRebuild = existingPlaceholders.length !== this.totalPages;
+            const hasAnyPlaceholders = existingPlaceholders.length > 0;
 
-            if (needsRebuild) {
-                // Full rebuild needed
+            if (!hasAnyPlaceholders) {
+                // Initial load - create placeholders only for visible buffer
                 container.innerHTML = ''; // Clear existing content
                 this.pageViewportHeights = {};
                 this.pageViewportWidths = {};
                 this.renderedCanvases.clear();
 
-                for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+                // Create placeholders only for initial visible pages
+                const BUFFER_BACK = 2;
+                const BUFFER_FORWARD = 8;
+                const startPage = Math.max(1, this.currentPage - BUFFER_BACK);
+                const endPage = Math.min(this.totalPages, this.currentPage + BUFFER_FORWARD);
+
+                for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
                     try {
                         await this.createPagePlaceholder(pageNum, container);
                     } catch (error) {
@@ -1440,10 +1875,8 @@ class Johnny5Viewer {
             // Draw top ruler and right annotations grid
             await this.drawPdfXDensityGrid();
             await this.drawAnnotationsGrid();
-            // Update density charts as overlay on top of existing grid
-            if (this.densityCharts && Object.keys(this.allDensityData).length > 0) {
-                await this.densityCharts.renderAllDensityCharts();
-            }
+            // Render density charts when data is available (grid drawing preserves existing canvases)
+            await this._restoreDensityCharts();
             // Redraw annotation list grid to match updated PDF layout
             if (!annotationsRebuilt) {
                 await this.drawAnnotationListGrid();
@@ -1485,20 +1918,24 @@ class Johnny5Viewer {
         /**
          * Render the actual canvas for a specific page
          * Called on-demand for visible pages only
+         * Creates placeholder if it doesn't exist
          */
-        const pageWrapper = document.querySelector(`.pdf-page-wrapper[data-page-num="${pageNum}"]`);
-        if (!pageWrapper) {
-            console.warn(`[Canvas] Page wrapper ${pageNum} not found`);
-            return;
-        }
-
         // Skip if canvas already rendered
         if (this.renderedCanvases.has(pageNum)) {
             return;
         }
 
-        try {
+        let pageWrapper = document.querySelector(`.pdf-page-wrapper[data-page-num="${pageNum}"]`);
+        if (!pageWrapper) {
+            // Placeholder doesn't exist - create it first
+            const container = this._getElement('pdf-canvas-container');
+            if (!container) return;
+            await this.createPagePlaceholder(pageNum, container);
+            pageWrapper = document.querySelector(`.pdf-page-wrapper[data-page-num="${pageNum}"]`);
+            if (!pageWrapper) return; // Still not found after creation
+        }
 
+        try {
             const page = await this.pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: this.scale });
 
@@ -1636,11 +2073,12 @@ class Johnny5Viewer {
         const scroller = document.getElementById('pdf-scroller');
         if (!container || !scroller) return;
 
-        const refresh = () => {
+        const refresh = async () => {
             // Recompute padding/background and per-page gaps
-            this.drawPdfYDensityGrid();
-            this.drawPdfXDensityGrid();
-            this.drawAnnotationsGrid();
+            // Grid drawing preserves density canvases automatically
+            await this.drawPdfYDensityGrid();
+            await this.drawPdfXDensityGrid();
+            await this.drawAnnotationsGrid();
         };
 
         // Observe container style/class changes
@@ -1991,13 +2429,15 @@ class Johnny5Viewer {
         const container = this._getElement('pdf-canvas-container');
         if (!yPanel || !scroller || !container || !this.pdfDoc) return;
 
-        // Remove density canvas before clearing (it will be re-added by density-charts.js)
+        // Preserve density overlay canvas - it's an overlay that should persist
+        // Y-density canvas is a direct child of yPanel (sibling to stack div), so it won't be removed
         const existingDensityCanvas = yPanel.querySelector('.density-overlay-canvas');
-        if (existingDensityCanvas) {
-            existingDensityCanvas.remove();
+        
+        // Clear only grid elements (stack div), not density overlays
+        const gridStack = yPanel.querySelector('div');
+        if (gridStack) {
+            gridStack.remove();
         }
-
-        yPanel.innerHTML = '';
         yPanel.style.overflowY = 'hidden';
         yPanel.style.display = 'block';
         yPanel.style.background = 'var(--y-density-bg)';
@@ -2058,7 +2498,11 @@ class Johnny5Viewer {
         // Scroll sync
         this._syncScroll(scroller, yPanel, '_rulerScrollHandler', 'vertical');
         
-        // Density canvas will be re-added by density-charts.js when it renders
+        // Y-density canvas should still be in DOM (it's a sibling of stack, not inside it)
+        // Only restore if somehow it got removed (safety check)
+        if (existingDensityCanvas && !yPanel.contains(existingDensityCanvas)) {
+            yPanel.appendChild(existingDensityCanvas);
+        }
     }
 
     async drawPdfXDensityGrid() {
@@ -2067,13 +2511,19 @@ class Johnny5Viewer {
         const container = this._getElement('pdf-canvas-container');
         if (!xPanel || !scroller || !container || !this.pdfDoc) return;
 
-        // Remove density canvas before clearing (it will be re-added by density-charts.js)
+        // Preserve density overlay canvas - it's an overlay that should persist
         const existingDensityCanvas = xPanel.querySelector('.x-density-overlay-canvas');
-        if (existingDensityCanvas) {
+        
+        // Clear only grid elements, not density overlays
+        // Note: X-density canvas is inside the row div, so we extract it first
+        const gridRow = xPanel.querySelector('div');
+        if (gridRow && existingDensityCanvas && gridRow.contains(existingDensityCanvas)) {
+            // Extract canvas before removing row
             existingDensityCanvas.remove();
         }
-
-        xPanel.innerHTML = '';
+        if (gridRow) {
+            gridRow.remove();
+        }
         // Disable native user scrolling; mirror from main scroller
         xPanel.style.overflowX = 'hidden';
         xPanel.style.background = 'var(--x-density-bg)';
@@ -2162,7 +2612,10 @@ class Johnny5Viewer {
 
         this._syncScroll(scroller, xPanel, '_rulerXScrollHandler', 'horizontal');
         
-        // Density canvas will be re-added by density-charts.js when it renders
+        // Restore density canvas if it was preserved (X-density canvas goes inside the row div)
+        if (existingDensityCanvas && row && !row.contains(existingDensityCanvas)) {
+            row.appendChild(existingDensityCanvas);
+        }
     }
 
     async drawAnnotationsGrid() {
@@ -2257,9 +2710,31 @@ class Johnny5Viewer {
         if (!this.pdfLogInitialized) {
             el.innerHTML = '';
             this.pdfLogInitialized = true;
+            // Create status line element
+            this.statusLineElement = document.createElement('div');
+            this.statusLineElement.id = 'pdf-log-status-line';
+            this.statusLineElement.className = 'pdf-log-entry pdf-log-status';
+            this.statusLineElement.style.display = 'none';
+            el.appendChild(this.statusLineElement);
         }
 
         this.addLogEntry(el, message, level);
+    }
+
+    // Update status line (single updating line at bottom of log)
+    updateStatusLine(statusData) {
+        if (!this.statusLineElement) return;
+
+        if (statusData && statusData.status === 'in_progress') {
+            const { cache_key, queue_position, progress, estimated_time } = statusData;
+            const progressPct = Math.round((progress || 0) * 100);
+            const queueText = queue_position > 0 ? `queue position #${queue_position}, ` : '';
+            const timeText = estimated_time ? `~${estimated_time} remaining` : '';
+            this.statusLineElement.textContent = `[Status] checksum=${cache_key}: ${queueText}${progressPct}% complete${timeText ? ', ' + timeText : ''}`;
+            this.statusLineElement.style.display = 'block';
+        } else {
+            this.statusLineElement.style.display = 'none';
+        }
     }
 
     addRecLogEntry(message, level = 'info') {
@@ -2420,14 +2895,14 @@ class Johnny5Viewer {
         });
     }
 
-    async loadNewPDF() {
+    async loadNewPDF(skipAutoRefresh = false) {
         try {
 
             // Clear all previous state
             this.clearPreviousDocument();
 
             // Use the exact same code path as initial load
-            await this.loadPDFFromServer();
+            await this.loadPDFFromServer(skipAutoRefresh);
 
         } catch (error) {
             this.addPdfLogEntry(`Error loading PDF: ${error.message}`, 'error');
@@ -2441,6 +2916,7 @@ class Johnny5Viewer {
         this.allDensityData = {};
         this.allLabels = [];
         this.loadedPages.clear();
+        this.disassemblyComplete = false; // Reset flag for new document
         this.renderedCanvases.clear();
         this.activeLabels = new Set();
         this.highlightedLabels = new Set();
@@ -2522,6 +2998,7 @@ class Johnny5Viewer {
         }
     }
 
+
     updateCurrentPage() {
         const scroller = this._getElement('pdf-scroller');
         const pageWrappers = document.querySelectorAll('.pdf-page-wrapper');
@@ -2552,11 +3029,9 @@ class Johnny5Viewer {
             this.currentPage = closestPage;
             this.updatePageNavigation();
             // Update density charts when page changes
-            if (this.densityCharts && Object.keys(this.allDensityData).length > 0) {
-                this.densityCharts.renderAllDensityCharts().catch(error => {
-                    console.log(`Density chart update error: ${error.message}`);
-                });
-            }
+            this._restoreDensityCharts().catch(error => {
+                console.log(`Density chart update error: ${error.message}`);
+            });
             // Lazy load visible pages in background
             this.loadVisiblePages().catch(error => {
                 console.log(`Lazy load error: ${error.message}`);
@@ -2654,11 +3129,8 @@ class Johnny5Viewer {
                 await this.drawPdfYDensityGrid();
                 await this.drawPdfXDensityGrid();
                 await this.drawAnnotationsGrid();
-                
-                // Redraw density charts after grid updates
-                if (this.densityCharts && Object.keys(this.allDensityData).length > 0) {
-                    await this.densityCharts.renderAllDensityCharts();
-                }
+                // Grid drawing preserves density canvases, but we may need to update them after layout changes
+                await this._restoreDensityCharts();
             } catch (error) {
                 console.error('Error redrawing after options toggle:', error);
             }
@@ -2801,6 +3273,9 @@ class Johnny5Viewer {
             if (rgbToggleMatch) {
                 code.style.setProperty('--code-color', `rgb(${rgbToggleMatch[1]}, ${rgbToggleMatch[2]}, ${rgbToggleMatch[3]})`);
             }
+            // Set text color based on annotation type
+            const textColor = this.getTextColorForType(label);
+            code.style.setProperty('--code-text', textColor);
             
             const name = document.createElement('span');
             name.className = 'ann-toggle-row-name';
@@ -3350,6 +3825,9 @@ class Johnny5Viewer {
             if (rgbListMatch) {
                 code.style.setProperty('--code-color', `rgb(${rgbListMatch[1]}, ${rgbListMatch[2]}, ${rgbListMatch[3]})`);
             }
+            // Set text color based on annotation type
+            const textColor = this.getTextColorForType(elementType);
+            code.style.setProperty('--code-text', textColor);
             
             listItem.appendChild(code);
 
@@ -3530,6 +4008,18 @@ class Johnny5Viewer {
         }
         // Fallback to default if type not found
         return themeStyles.getPropertyValue('--annotation-default').trim();
+    }
+
+    getTextColorForType(type) {
+        // Read annotation type text colors from CSS variables (white or black based on background)
+        const themeStyles = getComputedStyle(document.body);
+        const cssVarName = `--annotation-${type}-text`;
+        const textColor = themeStyles.getPropertyValue(cssVarName).trim();
+        if (textColor) {
+            return textColor;
+        }
+        // Fallback to default if type not found
+        return themeStyles.getPropertyValue('--annotation-default-text').trim() || '#000000';
     }
 
     getColorRGB(type) {

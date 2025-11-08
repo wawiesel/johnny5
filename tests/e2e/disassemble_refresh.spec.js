@@ -37,7 +37,8 @@ test.describe('Disassembly refresh flow', () => {
     await page.locator('.disassemble-btn').click();
     await waitForIndicatorState(page, 'processing', 5000);
     await waitForDisassemblyComplete(page);
-    await waitForIndicatorState(page, 'up-to-date', 10000);
+    // Wait longer for parallel runs where SSE messages might be delayed
+    await waitForIndicatorState(page, 'up-to-date', 15000);
     expect(await getRefreshIndicatorState(page)).toBe('up-to-date');
   });
 
@@ -71,8 +72,17 @@ test.describe('Disassembly refresh flow', () => {
     
     await page.locator('.disassemble-btn').click();
     await waitForIndicatorState(page, 'processing', 5000);
+    
+    // Wait for disassembly to complete (checks status API)
     await waitForDisassemblyComplete(page);
-    await waitForIndicatorState(page, 'up-to-date', 10000);
+    
+    // Wait for indicator to be up-to-date
+    // In parallel runs, SSE messages might go to different clients, so we rely on polling
+    // The indicator should eventually be updated either via SSE or by checking status
+    await waitForIndicatorState(page, 'up-to-date', 15000);
+    
+    // Verify indicator is up-to-date
+    expect(await getRefreshIndicatorState(page)).toBe('up-to-date');
     
     const annotationCount = await page.locator('.ann-list-item').count();
     if (annotationCount > 0) {
@@ -85,7 +95,8 @@ test.describe('Disassembly refresh flow', () => {
     await waitForPageReady(page);
     
     // Set up route interception AFTER page is ready, so initial load succeeds
-    await page.route('**/api/disassemble-refresh', route => {
+    // Match the route with query parameters
+    await page.route('**/api/disassemble-refresh*', route => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -96,7 +107,7 @@ test.describe('Disassembly refresh flow', () => {
     // Now click refresh - it should fail and show error state
     await page.locator('.disassemble-btn').click();
     
-    // Wait for error state to appear
+    // Wait for error state to appear (give it a moment for the async error handling)
     await waitForIndicatorState(page, 'error', 10000);
     expect(await getRefreshIndicatorState(page)).toBe('error');
   });

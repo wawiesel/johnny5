@@ -188,6 +188,28 @@ Cache files are stored at `~/.jny5/cache/structure/{cache_key}.json` (or `$JNY5_
 - Detailed processing logs are written to `~/.jny5/cache/logs/{cache_key}.log`
 - Progress and status messages are logged to the configured logger
 
+### Multi-User / Multi-PDF Support
+
+Johnny5 must support multiple clients viewing different PDFs simultaneously on the same server instance.
+
+#### Requirements
+
+- **Multiple PDF Support**: The server must allow different clients to view different PDF files concurrently
+- **Efficient Resource Usage**: When multiple clients request disassembly of the same PDF with the same options, the server must:
+  - Avoid duplicate processing jobs
+  - Share processing results when available
+  - Notify only the clients that requested a specific job when it completes
+- **Independent Client Sessions**: Each client must be able to:
+  - View a different PDF independently
+  - Request different processing options for the same PDF
+  - Receive notifications only for jobs they requested
+- **Request Deduplication**: If a disassembly job is already in progress for a given PDF and options combination, subsequent requests for the same combination must:
+  - Not start duplicate processing
+  - Return the current job status immediately
+  - Receive completion notification when the job finishes
+- **Cache Efficiency**: Clients requesting processing that has already completed (cache exists) must receive immediate response without triggering new processing or notifications
+- **Logging and Traceability**: The system must log which client requested which processing job for debugging and audit purposes
+
 ### Web Application
 
 The Johnny5 web interface provides a three-column layout for visualizing PDF disassembly and reconstruction processes. The interface is designed with **primary content areas** for the main workflow and **supporting data panels** for debugging and analysis.
@@ -211,10 +233,10 @@ The Johnny5 web interface provides a three-column layout for visualizing PDF dis
 #### Visual Layout
 ```
 ┌─────────────── PDF Column ────────────────┬── Annotations ──┬────── Reconstruction ──────┐
-│     i   |     X-Density (left)            │   Progress      │      X-Density (right)  r  │
+│ clr-mode|  X-Density (left)               │   Progress      │      X-Density (right)  r  │
 ├─────────┼─────────────────────────────────┼─────────────────┼────────────────────────────┤
-│ Y-Den   │  PDF Viewer (zoom + overlays)   │  Annotation     │  Reconstructed Content     │
-│ (left)  │  + Page Counter                 │  List           │  Viewer                    │
+│ Y-Den   │  PDF Viewer (zoom + overlays)   │  Annotation     │  Reconstructed    │ Y-Den  |
+│ (left)  │  + Page Counter                 │  List           │ Content Viewer    │ (right)|
 ├─────────┴─────────────────────────────────┼─────────────────┴────────────────────────────┤
 │     Options + Log (left)                  │  Label Toggles  │  Options + Log (right)     │
 └───────────────────────────────────────────┴─────────────────┴────────────────────────────┘
@@ -222,16 +244,23 @@ The Johnny5 web interface provides a three-column layout for visualizing PDF dis
 
 **Image Indicators:**
 
-- **i**: Original document image – changes when the underlying PDF or Docling options change
-- **r**: Reconstruction content image – changes when reconstruction output changes
+- **color-mode**: Color mode selector (theme toggle) – located in the top-left of the PDF column
+- **r**: Reconstruction content image – changes when reconstruction output changes, located in the top-right of the Reconstruction column
 
-Note: Additional indicators for intermediate stages (e.g., fixup/extract) may be added later; the current layout renders `i` on the left and `r` on the right.
+Note: Additional indicators for intermediate stages (e.g., fixup/extract) may be added later.
 
 ### Web Interface Requirements
 
 - **Synchronized scrolling**: Vertical scrolling should keep primary panes aligned (PDF viewer and reconstructed content)
 - **Responsive**: The UI responds smoothly to resize and zoom changes
 - **Readable**: PDF rendering is crisp and easy to read; controls are discoverable
+- **Multiple Option Sets**: Users must be able to:
+  - Request disassembly with multiple different option combinations (e.g., OCR enabled, OCR disabled, different layout models)
+  - Switch between different option sets and view results for each
+  - See processing status indicators (pulsating yellow) for each option set that is currently being processed
+  - When switching to an option set, the indicator must reflect the current status of that specific option combination (processing, completed, or needs-run)
+  - When a job completes for any option set, the indicator must automatically update to green (up-to-date) when the user switches to that option set, without requiring any user interaction
+  - When a job completes (successfully or with errors) for any requested option set, a log message must be displayed indicating the option set is "ready" or describing any problems encountered, regardless of which option set is currently being viewed
 
 #### Naming Convention for Web UI IDs
 

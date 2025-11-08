@@ -636,6 +636,17 @@
     color: var(--log-error-color);
 }
 
+/* Status line (updating single line at bottom) */
+#pdf-log-status-line {
+    position: sticky;
+    bottom: 0;
+    background-color: var(--surface-2);
+    border-top: 1px solid var(--border-subtle);
+    padding: 4px 8px;
+    font-style: italic;
+    margin-top: 0.25rem;
+}
+
 .pdf-log-copy-btn {
     position: sticky;
     top: 8px;

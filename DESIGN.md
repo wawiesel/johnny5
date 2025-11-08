@@ -75,12 +75,153 @@ FastAPI (async) serving local files and visualization tools:
 - **Web Interface**: Three-column layout (PDF | Annotations | Reconstruction) with synchronized scrolling. See §2.4.1 for detailed architecture.
 - **REST API**:
   - `GET /` → Johnny5 Web Interface
-  - `GET /doc` → metadata (page count, sizes)
-  - `GET /pages/{n}/image?dpi=...` → raster via PyMuPDF
-  - `GET /overlays/{n}` → clusters, colors, callouts
-  - `GET /density/{n}` → x/y density arrays + inferred margins
-- **WebSocket**: `WS /events` → `{"type":"reload","page":n}` on fixup refresh
+  - `GET /api/pdf?pdf_checksum=...` → Serve PDF file by checksum
+  - `GET /api/pdf-info?pdf_checksum=...` → PDF metadata and checksum
+  - `GET /api/disassembly-status?pdf_checksum=...&cache_key=...` → Job status for specific cache_key
+  - `GET /api/structure/{page}?pdf_checksum=...&cache_key=...` → Structure data for page
+  - `GET /api/density/{page}?pdf_checksum=...&cache_key=...` → Density data for page
+  - `POST /api/disassemble` → Upload PDF, returns `pdf_checksum`
+  - `POST /api/disassemble-refresh?pdf_checksum=...` → Trigger disassembly with options
+  - `GET /api/events?pdf_checksum=...&instance_id=...` → SSE stream filtered by instance_id
+- **Multi-User Architecture**: See §2.4.2 for detailed multi-PDF support design
 - Static files under `web/static`, templates under `web/templates`
+
+#### 2.4.2 Multi-User / Multi-PDF Architecture
+
+The server implements a stateless, identifier-based architecture to support multiple clients viewing different PDFs simultaneously, meeting the requirements specified in SPEC.md §Multi-User / Multi-PDF Support.
+
+##### Identifiers
+
+**PDF Checksum**: Each PDF file is identified by its SHA-256 checksum (64-character hexadecimal string)
+- Same PDF file always has the same checksum regardless of processing options
+- Used for routing requests, file lookup, and client session management
+- Example: `pdf_checksum="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"`
+
+**Cache Key**: Processing results are identified by cache key (16-character hash of PDF checksum + options)
+- Different processing options (e.g., OCR on/off) produce different cache keys
+- Used for cache lookups and job tracking
+- Example: `cache_key="a1b2c3d4e5f6g7h8"` for PDF with OCR enabled
+
+**Instance ID**: Each client browser session generates a unique UUID (instance_id) on page load
+- Used for logging and tracking which client requested which job
+- Included in all API requests for server-side logging
+- Example: `instance_id="550e8400-e29b-41d4-a716-446655440000"`
+
+##### Example Scenario
+
+1. **User A** and **User B** both view the same PDF (same `pdf_checksum`)
+2. Both load with default options (no OCR) → cache exists, both get immediate results
+3. **User A** requests OCR processing (different `cache_key`) → job starts, User A added to `requested_by`
+4. **User B** requests OCR while User A's job is in progress → User B added to `requested_by`, no duplicate job
+5. When OCR completes → both User A and User B receive completion notification
+6. If **User C** later requests OCR → cache exists, immediate response, no notification needed
+
+##### State Management
+
+**PDF Registry** (in-memory, rebuildable):
+```python
+pdf_registry: Dict[str, Path] = {}  # pdf_checksum -> pdf_path
+```
+- Maps PDF checksums to file paths
+- Populated on upload or CLI PDF load
+- Can be rebuilt by scanning uploads directory
+
+**Job Tracking** (in-memory, per-cache_key):
+```python
+disassembly_jobs: Dict[str, Dict] = {
+    "cache_key_abc123": {
+        "status": "in_progress",  # pending, in_progress, completed, error
+        "requested_by": ["instance_id_1", "instance_id_2"],  # Clients waiting
+        "cache_key": "abc123",
+        "pdf_checksum": "xyz789",
+        "options": {"enable_ocr": True},
+        "started_at": "2025-01-01T12:00:00",
+        "completed_at": None,
+        "queue_position": 2,  # Position in processing queue (0 = currently processing)
+        "estimated_time": "30s",  # Estimated time remaining
+        "progress": 0.45,  # Progress percentage (0.0 to 1.0)
+    }
+}
+```
+- One job entry per unique cache_key
+- Multiple clients can wait for the same job
+- Jobs include progress information for status endpoint polling
+- Jobs are cleaned up after completion (or kept for quick status lookup)
+
+**Request ID Tracking** (in-memory, per-request_id):
+```python
+request_notifications: Dict[str, set[str]] = {}  # request_id -> set of instance_ids
+```
+- Maps request_id to clients waiting for that request
+- Used for targeted completion notifications
+
+**SSE Client Queues** (in-memory, per-instance_id):
+```python
+sse_client_queues: Dict[str, asyncio.Queue] = {}  # instance_id -> queue
+```
+- Each client has its own notification queue
+- Used only for completion notifications (not log messages)
+- Lightweight: only sends when jobs complete
+
+##### Request Flow
+
+1. **Client Request**:
+   - Client submits: `pdf_checksum`, `instance_id`, `options` (in request body)
+   - Server generates `cache_key` (JJJ) from `pdf_checksum + options`
+   - Server checks if cache exists for `cache_key`
+
+2. **Immediate Response**:
+   - Server returns: `{cache_key: "JJJ", cache_exists: true/false, request_id: "..."}`
+   - If `cache_exists: true`: Client can immediately load data, no request_id needed
+   - If `cache_exists: false`: Server returns `request_id` for tracking this specific job
+
+3. **Job Deduplication**:
+   - If job already in progress for `cache_key`: Reuse existing `request_id`
+   - If new job: Create `request_id`, start disassembly, add `instance_id` to `request_notifications[request_id]`
+
+4. **Client Subscription**:
+   - Client receives `request_id` and subscribes to notifications for that ID
+   - Client maintains mapping: `request_id → {cache_key, options}` for logging
+
+5. **Completion Notification** (via SSE, no polling):
+   - When disassembly completes, server sends notification: `{type: "job_complete", request_id: "...", cache_key: "JJJ", status: "completed"}`
+   - Only clients in `request_notifications[request_id]` receive the notification
+   - Client generates log message: "options checksum=JJJ (options set {X,Y,Z}) ready"
+
+6. **Status Endpoint** (backup/progress/monitoring):
+   - `GET /api/disassembly-status?pdf_checksum=...&cache_key=...` returns detailed job status
+   - Response includes: `{status: "in_progress", queue_position: 2, estimated_time: "...", progress: 0.45}`
+   - **Primary use cases**:
+     - **Progress indicators**: Client can poll periodically to show queue position, estimated time, progress percentage
+     - **Backup/recovery**: If SSE connection is lost, client can poll to check status
+     - **Monitoring**: Can query status of any cache_key to see if it's in progress or completed
+   - Polling frequency can be lower (e.g., every 2-5 seconds) since SSE handles completion notifications
+
+##### SSE Notification System
+
+Server-Sent Events are used only for completion notifications (not log messages):
+- Client connects to `/api/events?instance_id=...`
+- Server creates queue for that `instance_id`
+- When a job completes, server sends notification with `request_id`
+- Only clients that subscribed to that `request_id` receive the notification
+- Prevents cross-client message leakage
+- Lightweight: only sends when jobs complete, not continuous log streaming
+
+##### Logging
+
+All server logs include `instance_id` for traceability:
+```
+[instance_id_1] Starting disassembly for cache_key abc123 (pdf_checksum xyz789)
+[instance_id_1] Disassembly completed for cache_key abc123
+```
+
+##### Stateless Design Benefits
+
+- **No per-client state dictionaries**: Uses identifier-based lookups
+- **Scales horizontally**: Can add server instances (with shared storage)
+- **Survives restarts**: PDF registry can be rebuilt from filesystem
+- **Memory efficient**: Only active jobs consume memory
+- **Cache-friendly**: Leverages existing cache key system
 
 #### 2.4.1 Web Viewer Architecture
 
@@ -176,10 +317,61 @@ All core functionality (PDF loading, rendering, annotations, grids, rulers, conn
 **Initialization Flow:**
 1. `Johnny5Viewer` constructor initializes internal state and creates the `DensityCharts` instance
 2. `init()` method sets up PDF.js, theme toggle, event listeners, and WebSocket
-3. `loadPDFFromServer()` loads the PDF and renders pages
-4. `renderAllPages()` draws all grids and rulers (PDF grid, Y-density grid, X-density grid, annotations grid, annotation list grid)
-5. If disassembly data is available, `loadAllPageData()` loads annotations and density charts
-6. Grids are redrawn after data loads to ensure synchronization
+3. Generate `instance_id` (UUID) on page load for client identification
+4. `loadPDFFromServer()` loads the PDF and renders pages
+5. `renderAllPages()` draws all grids and rulers (PDF grid, Y-density grid, X-density grid, annotations grid, annotation list grid)
+6. If disassembly data is available, `loadAllPageData()` loads annotations and density charts
+7. Grids are redrawn after data loads to ensure synchronization
+
+**Multi-User Support:**
+- Client generates `instance_id` (UUID) on page load, stored in localStorage
+- All API requests include `instance_id` and `pdf_checksum` as query parameters or headers
+- **Request Flow**:
+  1. Client submits options → server returns `{cache_key, cache_exists, request_id}`
+  2. Client maintains mapping: `request_id → {cache_key, options}` for logging
+  3. If `cache_exists: false`, client subscribes to SSE notifications for that `request_id`
+  4. Server sends completion notification via SSE when job finishes
+  5. Client generates log messages from status transitions
+- **Status Endpoint** (progress/backup): `GET /api/disassembly-status?pdf_checksum=...&cache_key=...` 
+  - Returns detailed status: `{status, queue_position, estimated_time, progress}`
+  - Client can poll periodically (e.g., every 2-5 seconds) to show progress indicators
+  - Useful for showing queue position, estimated time remaining, progress percentage
+  - Also serves as backup if SSE connection is lost
+- **Primary notification**: SSE provides real-time completion notifications (no polling needed)
+- **Progress updates**: Status endpoint polling provides queue position and progress for better UX
+
+**Multiple Option Sets:**
+- Client can request disassembly for multiple option combinations simultaneously
+- Each option combination generates a unique `cache_key` and has its own job status
+- Client tracks status for all requested option sets (not just the currently displayed one)
+- When user switches option sets, the refresh indicator shows the status for that specific `cache_key`:
+  - **Processing** (pulsating yellow): Job is in progress for this option set
+  - **Up-to-date** (green): Job completed, cache exists for this option set
+  - **Needs-run** (red): Options changed, no cache exists yet
+  - **Error** (red pulsing): Job failed for this option set
+- Client maintains a mapping of `cache_key` → status for all active option sets
+- Status indicators update in real-time as jobs complete, even if user is viewing a different option set
+- **Automatic Status Updates**: When a job completes for any option set, the client receives a notification and updates its status mapping. If the user switches to that option set after completion, the indicator immediately shows green (up-to-date) without requiring any user interaction or manual refresh
+- **Log Notifications**: The client displays log messages in the PDF log panel for each option set request, following this sequence:
+  1. **Request initiated**: `requesting option set {X,Y,Z} -> checksum=JJJ`
+     - Logged immediately when user requests a new option combination
+     - Includes human-readable option description and the cache_key (checksum)
+  2. **Cache check result**:
+     - If cache exists: `options checksum=JJJ in cache, ready to view`
+     - If cache missing: `options checksum=JJJ not in cache, computing`
+  3. **Completion**:
+     - Success: `options checksum=JJJ (options set {X,Y,Z}) ready`
+     - Error: `options checksum=JJJ (options set {X,Y,Z}) failed: [error message]`
+  - These log messages appear regardless of which option set is currently being viewed, providing feedback for all background jobs
+  - The cache_key (checksum) provides a consistent identifier across all messages for a given option set
+
+- **Status Line**: The log panel includes a single updating status line at the bottom that shows polling data:
+  - Displays current queue position, progress percentage, and estimated time for active jobs
+  - Updates in place (does not create new log entries) as polling data arrives
+  - Format: `[Status] checksum=JJJ: queue position #2, 45% complete, ~30s remaining`
+  - Only shows status for jobs that are currently in progress
+  - If multiple jobs are in progress, shows the most relevant one (e.g., the one being viewed)
+  - Implemented as a special log entry element that gets its content updated rather than appended
 
 ### 2.5 watcher.py
 - `watch_fixups(paths: list[Path], on_change: Callable[[], None])`
