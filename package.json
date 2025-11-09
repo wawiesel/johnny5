@@ -10,6 +10,8 @@
   "scripts": {
     "test": "playwright test",
     "lint": "eslint src/johnny5/web/static/**/*.js"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0"
   }
 }
-

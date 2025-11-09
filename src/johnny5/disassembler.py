@@ -9,6 +9,7 @@ This module handles the core PDF disassembly workflow:
 import json
 import logging
 import importlib
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
@@ -23,6 +24,7 @@ from .utils.fixup_context import FixupContext
 from .utils.cache import (
     generate_disassemble_cache_key,
     get_cached_file,
+    get_cache_dir,
     save_to_cache,
 )
 
@@ -32,10 +34,9 @@ logger = logging.getLogger(__name__)
 
 def run_disassemble(
     pdf: Path,
-    layout_model: str,
     enable_ocr: bool,
-    json_dpi: int,
     fixup: str,
+    force_refresh: bool = False,
 ) -> str:
     """
     Convert a PDF into Docling lossless JSON with content-based caching.
@@ -43,15 +44,14 @@ def run_disassemble(
     This function implements cache-first behavior:
     1. Generate cache key from PDF content + Docling options
     2. Check if cache exists for this key
-    3. If cache hit: Return cache key (no processing needed)
-    4. If cache miss: Run Docling, save to cache, return cache key
+    3. If cache hit and not forced: Return cache key (no processing needed)
+    4. If cache miss or forced: Run Docling, save to cache, return cache key
 
     Args:
         pdf: Path to the PDF file to process
-        layout_model: Docling layout model to use (e.g., "pubtables", "hi_res")
         enable_ocr: Whether to enable OCR processing for text extraction
-        json_dpi: DPI setting for JSON output generation
         fixup: Module path for fixup processing (hot-reloadable)
+        force_refresh: If True, reprocess even if cache exists (default: False)
 
     Returns:
         16-character cache key identifying the cached structure JSON
@@ -60,64 +60,78 @@ def run_disassemble(
         FileNotFoundError: If PDF file doesn't exist
         ValueError: If PDF processing fails
     """
+    # Check Docling version requirement
+    check_docling_version()
+
     logger.info(f"Starting PDF disassembly: {pdf}")
-    logger.info(f"Layout model: {layout_model}, OCR: {enable_ocr}, DPI: {json_dpi}")
+    logger.info(f"OCR: {enable_ocr}")
 
     # Validate input
     if not pdf.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf}")
 
     # Step 1: Generate cache key from PDF content + Docling options
-    cache_key, pdf_checksum = generate_disassemble_cache_key(
-        pdf, layout_model, enable_ocr, json_dpi
-    )
+    cache_key, pdf_checksum = generate_disassemble_cache_key(pdf, enable_ocr)
     logger.info(f"Cache key: {cache_key}")
     logger.info(f"PDF checksum: {pdf_checksum}")
 
-    # Step 2: Check if cache exists
-    cached_file = get_cached_file(cache_key, "structure")
-    if cached_file is not None:
-        logger.info(f"Cache hit! Using cached result: {cached_file}")
-        logger.info("Skipping Docling conversion (already processed)")
-        return cache_key
-
-    # Step 3: Cache miss - run Docling conversion
-    logger.info("Cache miss - running Docling conversion")
+    # Set up file logging for detailed output
+    log_dir = get_cache_dir("logs")
+    log_file = log_dir / f"{cache_key}.log"
+    file_handler = logging.FileHandler(log_file, mode="w")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+    logger.addHandler(file_handler)
+    logger.info(f"Full log will be written to: {log_file}")
 
     try:
-        docling_result = _run_docling_conversion(
-            pdf, layout_model, enable_ocr, json_dpi, pdf_checksum
-        )
+        # Step 2: Check if cache exists
+        cached_file = get_cached_file(cache_key, "structure")
+        if cached_file is not None and not force_refresh:
+            logger.info(f"Cache hit! Using cached result: {cached_file}")
+            logger.info("Skipping Docling conversion (already processed)")
+            return cache_key
 
-        # Save to cache with cache key as filename
-        cache_file = save_to_cache(docling_result, cache_key, "structure")
-        logger.info(f"Docling output saved to cache: {cache_file}")
+        # Step 3: Cache miss or forced refresh - run Docling conversion
+        if cached_file is not None:
+            logger.info(f"Cache exists at {cached_file}, but forcing refresh as requested")
+        else:
+            logger.info("Cache miss - running Docling conversion")
 
-    except Exception as e:
-        logger.error(f"Docling conversion failed: {e}")
-        raise ValueError(f"PDF processing failed: {e}") from e
+        try:
+            docling_result = _run_docling_conversion(pdf, enable_ocr, pdf_checksum)
 
-    logger.info("PDF disassembly completed successfully")
-    return cache_key
+            # Save to cache with cache key as filename
+            cache_file = save_to_cache(docling_result, cache_key, "structure")
+            logger.info(f"Docling output saved to cache: {cache_file}")
+
+        except Exception as e:
+            logger.error(f"Docling conversion failed: {e}")
+            raise ValueError(f"PDF processing failed: {e}") from e
+
+        logger.info("PDF disassembly completed successfully")
+        return cache_key
+    finally:
+        # Clean up file handler
+        logger.removeHandler(file_handler)
+        file_handler.close()
 
 
-def _run_docling_conversion(
-    pdf: Path, layout_model: str, enable_ocr: bool, json_dpi: int, pdf_checksum: str
-) -> Dict[str, Any]:
+def _run_docling_conversion(pdf: Path, enable_ocr: bool, pdf_checksum: str) -> Dict[str, Any]:
     """
     Convert PDF to lossless JSON using Docling DocumentConverter.
 
     Args:
         pdf: Path to PDF file
-        layout_model: Layout model to use
         enable_ocr: Whether to enable OCR
-        json_dpi: DPI for JSON output
         pdf_checksum: SHA-256 checksum of the PDF file
 
     Returns:
         Dictionary containing Docling's lossless JSON structure
     """
-    logger.debug(f"Initializing Docling converter with model: {layout_model}")
+    logger.debug("Initializing Docling converter (Docling 2.0: docling_layout_heron)")
 
     # Initialize converter with PdfFormatOption and configure pipeline options
     pdf_opt = PdfFormatOption()
@@ -126,13 +140,7 @@ def _run_docling_conversion(
     # Start from defaults and override fields explicitly
     pdf_options = PdfPipelineOptions()
     pdf_options.do_ocr = enable_ocr
-    # Set layout model if exposed via pipeline options
-    # (uses LayoutOptions.model_spec)
-    pdf_options.layout_options.model_spec = (
-        pdf_options.layout_options.model_spec  # keep default if unknown name
-    )
-    # JSON DPI used downstream for rendering/export; pipeline uses images_scale
-    # which we leave at default (1.0). json_dpi is persisted in metadata.
+    # Docling 2.0: layout model is always docling_layout_heron (set by default)
     pdf_opt.pipeline_options = pdf_options
 
     converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opt})
@@ -151,9 +159,8 @@ def _run_docling_conversion(
     metadata: Dict[str, Any] = {
         "source_pdf": pdf_uri,
         "_checksum": pdf_checksum,
-        "layout_model": layout_model,
+        "layout_model": "docling_layout_heron",  # Docling 2.0 always uses this
         "ocr_enabled": enable_ocr,
-        "json_dpi": json_dpi,
     }
 
     pages = cast(List[Dict[str, Any]], doc_dict.get("pages", []))
@@ -449,18 +456,20 @@ def _write_json(data: Dict[str, Any], output_path: Path) -> None:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def load_docling_pipeline(layout_model: str, enable_ocr: bool) -> DocumentConverter:
+def load_docling_pipeline(enable_ocr: bool) -> DocumentConverter:
     """
     Load and configure Docling pipeline with specified options.
 
     Args:
-        layout_model: Layout model to use
         enable_ocr: Whether to enable OCR
 
     Returns:
         Configured DocumentConverter instance
     """
-    logger.debug(f"Loading Docling pipeline: model={layout_model}, ocr={enable_ocr}")
+    # Check Docling version requirement
+    check_docling_version()
+
+    logger.debug(f"Loading Docling pipeline (Docling 2.0: docling_layout_heron), ocr={enable_ocr}")
 
     pdf_opt = PdfFormatOption()
     # Use PyPdfiumDocumentBackend explicitly (matches main branch behavior)
@@ -469,7 +478,7 @@ def load_docling_pipeline(layout_model: str, enable_ocr: bool) -> DocumentConver
     pipeline_options.do_ocr = enable_ocr
     pipeline_options.do_table_structure = True
     pipeline_options.table_structure_options.do_cell_matching = True
-    # Optionally adjust layout model via pipeline options
+    # Docling 2.0: layout model is always docling_layout_heron (set by default)
     pdf_opt.pipeline_options = pipeline_options
 
     converter = DocumentConverter(format_options={InputFormat.PDF: pdf_opt})
@@ -489,3 +498,103 @@ def apply_fixups(content: Dict[str, Any], fixup: str) -> Dict[str, Any]:
         Corrected content after fixup processing
     """
     return _apply_fixup_rules(content, fixup, Path("unknown.pdf"))
+
+
+def get_available_layout_models() -> List[Dict[str, str]]:
+    """
+    Get list of available Docling layout models with descriptions.
+
+    Models are discovered from a version-specific cache file in ~/.jny5/models/{version}.json
+    (or $JNY5_HOME/models/{version}.json if JNY5_HOME is set).
+
+    The cache file is automatically created on first run with known defaults for the current
+    Docling version. Users can manually edit the cache file to customize available models.
+
+    Future enhancement: Automatic discovery by querying Docling's API or documentation
+    when a new version is detected, then caching the results.
+
+    Returns:
+        List of dicts with 'name', 'description', and optional 'docs_url' keys
+    """
+    # Check Docling version requirement
+    check_docling_version()
+
+    docling_version = get_docling_version()
+
+    # Try to load models from version-specific cache
+    jny5_home = Path(os.environ.get("JNY5_HOME", str(Path.home() / ".jny5")))
+    models_dir = jny5_home / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    models_cache_file = models_dir / f"{docling_version}.json"
+
+    if models_cache_file.exists():
+        try:
+            with open(models_cache_file, "r", encoding="utf-8") as f:
+                cached_models = json.load(f)
+                if isinstance(cached_models, list) and len(cached_models) > 0:
+                    logger.debug(f"Loaded layout models from cache: {models_cache_file}")
+                    return cached_models
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to load models cache: {e}, using defaults")
+
+    # Docling 2.0+ only: always uses docling_layout_heron
+    models = [
+        {
+            "name": "docling_layout_heron",
+            "description": "Unified layout detection model (Docling 2.0+)",
+            "docs_url": "https://github.com/DS4SD/docling",
+        },
+    ]
+
+    # Save defaults to cache for future reference and manual editing
+    try:
+        with open(models_cache_file, "w", encoding="utf-8") as f:
+            json.dump(models, f, indent=2, ensure_ascii=False)
+        logger.info(f"Saved default models to cache: {models_cache_file}")
+        logger.info("You can edit this file to customize available models for this Docling version")
+    except IOError as e:
+        logger.warning(f"Failed to save models cache: {e}")
+
+    return models
+
+
+def get_docling_version() -> str:
+    """Get the current Docling version.
+
+    Returns:
+        Version string (e.g., '2.58.0')
+    """
+    import importlib.metadata
+
+    return importlib.metadata.version("docling")
+
+
+def check_docling_version() -> None:
+    """Check that Docling version is 2.0 or higher.
+
+    Raises:
+        RuntimeError: If Docling version is less than 2.0
+    """
+    version = get_docling_version()
+    major_version = int(version.split(".")[0])
+    if major_version < 2:
+        raise RuntimeError(
+            f"Docling version {version} is not supported. "
+            "Johnny5 requires Docling 2.0 or higher. "
+            "Please upgrade: pip install --upgrade docling"
+        )
+
+
+def verify_layout_model(model_name: str) -> bool:
+    """
+    Verify that a layout model is available and can be instantiated.
+
+    Args:
+        model_name: Name of the layout model to verify
+
+    Returns:
+        True if model is valid and can be used, False otherwise
+    """
+    # Docling 2.0+ only supports docling_layout_heron
+    return model_name == "docling_layout_heron"

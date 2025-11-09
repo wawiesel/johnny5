@@ -369,16 +369,57 @@
     align-self: stretch; /* Stretch to fill grid cell height */
 }
 
-/* Visual change indicator on the Refresh button when options changed */
-#pdf-options .disassemble-btn.needs-run::after {
+/* Status indicators on the Refresh button */
+
+/* Shared base styles for all indicator dots */
+#pdf-options .disassemble-btn.up-to-date::after,
+#pdf-options .disassemble-btn.needs-run::after,
+#pdf-options .disassemble-btn.processing::after,
+#pdf-options .disassemble-btn.error::after {
     content: '';
     display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--alert-color);
     margin-left: 6px;
+}
+
+/* Green solid dot - up to date */
+#pdf-options .disassemble-btn.up-to-date::after {
+    background: var(--success-color);
+    box-shadow: 0 0 0 1px var(--success-color-soft);
+}
+
+/* Red solid dot - needs run (options changed) */
+#pdf-options .disassemble-btn.needs-run::after {
+    background: var(--alert-color);
     box-shadow: 0 0 0 1px var(--alert-color-soft);
+}
+
+/* Yellow pulsing dot - processing */
+#pdf-options .disassemble-btn.processing::after {
+    background: var(--log-warning-color);
+    box-shadow: 0 0 0 1px var(--log-warning-color);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Red pulsing dot - error */
+#pdf-options .disassemble-btn.error::after {
+    background: var(--error-color);
+    box-shadow: 0 0 0 1px var(--error-color-soft);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* Pulse animation for processing and error states */
+@keyframes pulse-dot {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
 }
 
 #pdf-options .pdf-control-group label {
@@ -593,6 +634,17 @@
 /* Error messages */
 #pdf-log .pdf-log-entry.error {
     color: var(--log-error-color);
+}
+
+/* Status line (updating single line at bottom) */
+#pdf-log-status-line {
+    position: sticky;
+    bottom: 0;
+    background-color: var(--surface-2);
+    border-top: 1px solid var(--border-subtle);
+    padding: 4px 8px;
+    font-style: italic;
+    margin-top: 0.25rem;
 }
 
 .pdf-log-copy-btn {

@@ -4,6 +4,8 @@
  * canvas sampling logic across specs.
  */
 
+// Helper function to check if a pixel is part of the grid
+// Defined here for reference, but inlined in each function for serialization
 function isGridPixel(R, G, B, A) {
   if (A === 0) return false;
   const isGray = Math.abs(R - G) <= 5 && Math.abs(G - B) <= 5 && R < 230;
@@ -43,9 +45,7 @@ function rowHasGridFn({ absoluteY, left, right, containerId = 'pdf-grid' }) {
     const width = Math.max(1, ex - sx);
     const rowData = ctx.getImageData(sx, sy, width, sampleHeight).data;
     for (let i = 0; i < rowData.length; i += 4) {
-      if (rowData[i + 3] > 0) {
-        return true;
-      }
+      if (rowData[i + 3] > 0) return true;
     }
   }
   return false;
@@ -80,9 +80,7 @@ function columnHasGridFn({ absoluteX, top, bottom, containerId = 'pdf-grid' }) {
     const sx = Math.max(0, Math.min(canvas.width - sampleWidth, centerX - Math.floor(sampleWidth / 2)));
     const colData = ctx.getImageData(sx, sy, sampleWidth, Math.max(1, ey - sy)).data;
     for (let i = 0; i < colData.length; i += 4) {
-      if (colData[i + 3] > 0) {
-        return true;
-      }
+      if (colData[i + 3] > 0) return true;
     }
   }
   return false;
@@ -118,7 +116,7 @@ function hasGridPixelFn({ x, y, padding = 0, containerId = 'pdf-grid' }) {
     const height = Math.min(canvas.height - sy, size);
     const data = ctx.getImageData(sx, sy, width, height).data;
     for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] > 0) {
+      if (data[i + 3] > 0 && isGridPixel(data[i], data[i + 1], data[i + 2], data[i + 3])) {
         return true;
       }
     }
@@ -180,7 +178,7 @@ function findHorizontalGridLineFn({ searchTop = 0, searchBottom = Number.POSITIV
     for (let row = startY; row < endY; row += Math.max(1, Math.floor(scaleY))) {
       const data = ctx.getImageData(0, row, canvas.width, 1).data;
       for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] > 0) {
+        if (data[i + 3] > 0 && isGridPixel(data[i], data[i + 1], data[i + 2], data[i + 3])) {
           const xPx = (i / 4) / scaleX + rect.left;
           const yPx = row / scaleY + rect.top;
           return { x: xPx, y: yPx };
@@ -192,6 +190,14 @@ function findHorizontalGridLineFn({ searchTop = 0, searchBottom = Number.POSITIV
 }
 
 function findVerticalGridLineFn({ searchLeft = 0, searchRight = Number.POSITIVE_INFINITY, containerId = 'pdf-grid' }) {
+  function isGridPixel(R, G, B, A) {
+    if (A === 0) return false;
+    const isGray = Math.abs(R - G) <= 5 && Math.abs(G - B) <= 5 && R < 230;
+    const isRed = R > 180 && G < 100 && B < 100;
+    const isCyan = R < 120 && G > 170 && B > 170;
+    const isGreen = R < 120 && G > 170 && B < 120;
+    return isGray || isRed || isCyan || isGreen;
+  }
   const container = document.getElementById(containerId);
   if (!container) return null;
   const canvases = Array.from(container.querySelectorAll('canvas'));
@@ -209,7 +215,7 @@ function findVerticalGridLineFn({ searchLeft = 0, searchRight = Number.POSITIVE_
     for (let col = startX; col < endX; col += Math.max(1, Math.floor(scaleX))) {
       const data = ctx.getImageData(col, 0, 1, canvas.height).data;
       for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 3] > 0) {
+        if (data[i + 3] > 0 && isGridPixel(data[i], data[i + 1], data[i + 2], data[i + 3])) {
           const yPx = (i / 4) / scaleY + rect.top;
           const xPx = col / scaleX + rect.left;
           return { x: xPx, y: yPx };
